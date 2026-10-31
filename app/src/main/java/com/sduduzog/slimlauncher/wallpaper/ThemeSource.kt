@@ -75,14 +75,23 @@ object WallpaperThemeLogic {
         }
     }
 
-    fun drawerGradient(seed: Int): IntArray {
+    fun drawerGradient(seed: Int, fadePercent: Int = LauncherFadeLogic.DEFAULT_DRAWER_FADE): IntArray {
         val tint = scrimTint(seed)
-        return intArrayOf(scrim(tint, DRAWER_TOP_ALPHA), scrim(tint, DRAWER_BOTTOM_ALPHA))
+        return intArrayOf(
+            scrim(tint, LauncherFadeLogic.scaleAlpha(DRAWER_TOP_ALPHA, fadePercent)),
+            scrim(tint, LauncherFadeLogic.scaleAlpha(DRAWER_BOTTOM_ALPHA, fadePercent))
+        )
     }
 
-    fun homeClockScrim(seed: Int): Int = scrim(scrimTint(seed), HOME_CLOCK_ALPHA)
+    fun homeClockScrim(
+        seed: Int,
+        fadePercent: Int = LauncherFadeLogic.DEFAULT_HOME_FADE
+    ): Int = scrim(scrimTint(seed), LauncherFadeLogic.scaleAlpha(HOME_CLOCK_ALPHA, fadePercent))
 
-    fun homeDockScrim(seed: Int): Int = scrim(scrimTint(seed), HOME_DOCK_ALPHA)
+    fun homeDockScrim(
+        seed: Int,
+        fadePercent: Int = LauncherFadeLogic.DEFAULT_HOME_FADE
+    ): Int = scrim(scrimTint(seed), LauncherFadeLogic.scaleAlpha(HOME_DOCK_ALPHA, fadePercent))
 
     fun scrim(color: Int, alpha: Int = SCRIM_ALPHA): Int {
         return (color and 0x00FFFFFF) or (alpha shl 24)

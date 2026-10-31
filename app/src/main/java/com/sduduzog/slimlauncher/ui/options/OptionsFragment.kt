@@ -2,19 +2,25 @@ package com.sduduzog.slimlauncher.ui.options
 
 import android.content.Context.MODE_PRIVATE
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.SeekBar
+import android.widget.TextView
 import androidx.core.content.edit
 import androidx.navigation.Navigation
 import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.databinding.OptionsFragmentBinding
 import com.sduduzog.slimlauncher.icons.IconPreferences
+import com.sduduzog.slimlauncher.icons.PackThemeController
 import com.sduduzog.slimlauncher.ui.dialogs.ChangeThemeDialog
 import com.sduduzog.slimlauncher.ui.dialogs.ChooseTimeFormatDialog
 import com.sduduzog.slimlauncher.utils.BaseFragment
+import com.sduduzog.slimlauncher.wallpaper.LauncherFadeLogic
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -27,6 +33,9 @@ class OptionsFragment : BaseFragment() {
 
     @Inject
     lateinit var iconPreferences: IconPreferences
+
+    @Inject
+    lateinit var themeController: PackThemeController
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -91,7 +100,92 @@ class OptionsFragment : BaseFragment() {
                 R.id.action_optionsFragment_to_customiseAppsFragment
             )
         )
+        bindFadeControls()
         return binding?.root
+    }
+
+    override fun onResume() {
+        super.onResume()
+        applyWallpaperTheme()
+        bindFadeControls()
+    }
+
+    private fun bindFadeControls() {
+        val views = binding ?: return
+        views.optionsFragmentDrawerFade.progress = iconPreferences.drawerFadePercent
+        views.optionsFragmentHomeFade.progress = iconPreferences.homeFadePercent
+        views.optionsFragmentDrawerBlur.progress = iconPreferences.drawerBlurPercent
+        val blurSupported = LauncherFadeLogic.blurSupported(Build.VERSION.SDK_INT)
+        views.optionsFragmentDrawerBlur.isEnabled = blurSupported
+        updateFadeLabels()
+        views.optionsFragmentDrawerFade.setOnSeekBarChangeListener(
+            percentListener { iconPreferences.drawerFadePercent = it }
+        )
+        views.optionsFragmentHomeFade.setOnSeekBarChangeListener(
+            percentListener { iconPreferences.homeFadePercent = it }
+        )
+        views.optionsFragmentDrawerBlur.setOnSeekBarChangeListener(
+            percentListener { iconPreferences.drawerBlurPercent = it }
+        )
+    }
+
+    private fun updateFadeLabels() {
+        val views = binding ?: return
+        views.optionsFragmentDrawerFadeLabel.text = getString(
+            R.string.options_fragment_drawer_fade,
+            iconPreferences.drawerFadePercent
+        )
+        views.optionsFragmentHomeFadeLabel.text = getString(
+            R.string.options_fragment_home_fade,
+            iconPreferences.homeFadePercent
+        )
+        views.optionsFragmentDrawerBlurLabel.text = if (
+            LauncherFadeLogic.blurSupported(Build.VERSION.SDK_INT)
+        ) {
+            getString(R.string.options_fragment_drawer_blur, iconPreferences.drawerBlurPercent)
+        } else {
+            getString(R.string.options_fragment_drawer_blur_unsupported)
+        }
+    }
+
+    private fun percentListener(onChange: (Int) -> Unit): SeekBar.OnSeekBarChangeListener {
+        return object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (!fromUser) return
+                onChange(progress)
+                updateFadeLabels()
+                applyWallpaperTheme()
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        }
+    }
+
+    private fun applyWallpaperTheme() {
+        val views = binding ?: return
+        val theme = themeController.active()
+        views.optionsFragment.setBackgroundColor(theme.background)
+        tintText(views.optionsFragment, theme.onBackground)
+        val accent = ColorStateList.valueOf(theme.accent)
+        views.optionsFragmentDrawerFade.progressTintList = accent
+        views.optionsFragmentDrawerFade.thumbTintList = accent
+        views.optionsFragmentHomeFade.progressTintList = accent
+        views.optionsFragmentHomeFade.thumbTintList = accent
+        views.optionsFragmentDrawerBlur.progressTintList = accent
+        views.optionsFragmentDrawerBlur.thumbTintList = accent
+    }
+
+    private fun tintText(view: View, color: Int) {
+        if (view is TextView) {
+            view.setTextColor(color)
+        }
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) {
+                tintText(view.getChildAt(index), color)
+            }
+        }
     }
 
     override fun onDestroyView() {

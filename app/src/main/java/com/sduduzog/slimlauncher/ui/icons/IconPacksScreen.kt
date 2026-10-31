@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sduduzog.slimlauncher.icons.GenerationProgress
 import com.sduduzog.slimlauncher.icons.PackTheme
+import com.sduduzog.slimlauncher.wallpaper.LauncherFadeLogic
 import com.sduduzog.slimlauncher.wallpaper.WallpaperThemeLogic
 
 @Composable
@@ -43,10 +44,12 @@ fun ForgeTheme(
     theme: PackTheme = PackTheme.STOCK,
     translucent: Boolean = false,
     drawerScrim: Boolean = false,
+    drawerFadePercent: Int = LauncherFadeLogic.DEFAULT_DRAWER_FADE,
+    drawerBlurPercent: Int = LauncherFadeLogic.DEFAULT_DRAWER_BLUR,
     content: @Composable () -> Unit
 ) {
     val gradient = if (drawerScrim) {
-        WallpaperThemeLogic.drawerGradient(theme.seed)
+        WallpaperThemeLogic.drawerGradient(theme.seed, drawerFadePercent)
     } else {
         null
     }
@@ -77,7 +80,7 @@ fun ForgeTheme(
         (0.299f * Color(theme.background).red) +
             (0.587f * Color(theme.background).green) +
             (0.114f * Color(theme.background).blue)
-    val colors = remember(theme, translucent, drawerScrim) {
+    val colors = remember(theme, translucent, drawerScrim, drawerFadePercent) {
         val scheme = if (luminance < 0.5f) {
             darkColorScheme(
                 background = background,
@@ -108,8 +111,13 @@ fun ForgeTheme(
     MaterialTheme(colorScheme = colors, typography = MaterialTheme.typography) {
         CompositionLocalProvider(LocalContentColor provides foreground) {
             Box(modifier = Modifier.fillMaxSize()) {
-                val scrimBlur = if (drawerScrim && Build.VERSION.SDK_INT >= 31) {
-                    Modifier.blur(12.dp)
+                val blurDp = LauncherFadeLogic.blurRadiusDp(drawerBlurPercent)
+                val scrimBlur = if (
+                    drawerScrim &&
+                    LauncherFadeLogic.blurSupported(Build.VERSION.SDK_INT) &&
+                    blurDp > 0f
+                ) {
+                    Modifier.blur(blurDp.dp)
                 } else {
                     Modifier
                 }

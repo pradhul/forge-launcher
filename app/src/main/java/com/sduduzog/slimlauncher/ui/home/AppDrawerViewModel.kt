@@ -36,7 +36,9 @@ data class AppDrawerUiState(
     val canRegenerate: Boolean = false,
     val theme: PackTheme = PackTheme.STOCK,
     val frequent: List<DrawerAppItem> = emptyList(),
-    val openKeyboardOnOpen: Boolean = false
+    val openKeyboardOnOpen: Boolean = false,
+    val drawerFadePercent: Int = com.sduduzog.slimlauncher.wallpaper.LauncherFadeLogic.DEFAULT_DRAWER_FADE,
+    val drawerBlurPercent: Int = com.sduduzog.slimlauncher.wallpaper.LauncherFadeLogic.DEFAULT_DRAWER_BLUR
 )
 
 @HiltViewModel
@@ -61,8 +63,9 @@ class AppDrawerViewModel @Inject constructor(
             DrawerSnapshot(query, installed, home, icons)
         },
         prefs.revision,
-        launchStore.revision
-    ) { snapshot, _, _ ->
+        launchStore.revision,
+        prefs.chrome
+    ) { snapshot, _, _, chrome ->
         val pins = snapshot.home.map { it.packageName to it.userSerial }
         fun itemOf(app: App) = DrawerAppItem(
             app = app,
@@ -84,7 +87,9 @@ class AppDrawerViewModel @Inject constructor(
                 store.getPack(prefs.appliedPackId!!) != null,
             theme = themeController.active(),
             frequent = frequent,
-            openKeyboardOnOpen = prefs.openKeyboardOnDrawer
+            openKeyboardOnOpen = prefs.openKeyboardOnDrawer,
+            drawerFadePercent = chrome.drawerFadePercent,
+            drawerBlurPercent = chrome.drawerBlurPercent
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppDrawerUiState())
 

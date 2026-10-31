@@ -40,6 +40,7 @@ import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.adapters.HomeAdapter
 import com.sduduzog.slimlauncher.databinding.HomeFragmentBinding
 import com.sduduzog.slimlauncher.icons.AppIconResolver
+import com.sduduzog.slimlauncher.icons.IconPreferences
 import com.sduduzog.slimlauncher.icons.PackThemeController
 import com.sduduzog.slimlauncher.models.HomeApp
 import com.sduduzog.slimlauncher.models.MainViewModel
@@ -77,6 +78,9 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     lateinit var themeController: PackThemeController
 
     @Inject
+    lateinit var iconPreferences: IconPreferences
+
+    @Inject
     lateinit var wallpaperPackCoordinator: com.sduduzog.slimlauncher.wallpaper.WallpaperPackCoordinator
 
     private lateinit var receiver: BroadcastReceiver
@@ -108,7 +112,12 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     private fun setupDrawer() {
         binding!!.homeFragmentDrawer.setContent {
             val state by drawerViewModel.ui.collectAsStateWithLifecycle()
-            ForgeTheme(theme = state.theme, drawerScrim = true) {
+            ForgeTheme(
+                theme = state.theme,
+                drawerScrim = true,
+                drawerFadePercent = state.drawerFadePercent,
+                drawerBlurPercent = state.drawerBlurPercent
+            ) {
                 AppDrawerOverlay(
                     visible = drawerOpen,
                     state = state,
@@ -192,6 +201,11 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                     adapter.notifyDataSetChanged()
                     drawerViewModel.refreshInstalled()
                 }
+            }
+        }
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                iconPreferences.chrome.collect { applyLauncherTheme() }
             }
         }
     }
@@ -367,13 +381,14 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         val root = binding?.homeFragment ?: return
         root.setBackgroundColor(android.graphics.Color.TRANSPARENT)
         val seed = theme.seed
+        val homeFade = iconPreferences.homeFadePercent
         binding?.homeFragmentTopScrim?.background = GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
-            intArrayOf(WallpaperThemeLogic.homeClockScrim(seed), 0x00000000)
+            intArrayOf(WallpaperThemeLogic.homeClockScrim(seed, homeFade), 0x00000000)
         )
         binding?.homeFragmentBottomScrim?.background = GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
-            intArrayOf(0x00000000, WallpaperThemeLogic.homeDockScrim(seed))
+            intArrayOf(0x00000000, WallpaperThemeLogic.homeDockScrim(seed, homeFade))
         )
         binding?.homeFragmentTime?.setTextColor(theme.onBackground)
         binding?.homeFragmentDate?.setTextColor(theme.onBackground)

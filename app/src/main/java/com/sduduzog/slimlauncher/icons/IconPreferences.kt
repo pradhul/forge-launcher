@@ -2,6 +2,8 @@ package com.sduduzog.slimlauncher.icons
 
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import com.sduduzog.slimlauncher.wallpaper.ChromeFadePrefs
+import com.sduduzog.slimlauncher.wallpaper.LauncherFadeLogic
 import com.sduduzog.slimlauncher.wallpaper.ThemeSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,6 +15,9 @@ class IconPreferences(private val prefs: SharedPreferences) {
 
     private val _revision = MutableStateFlow(0)
     val revision: StateFlow<Int> = _revision.asStateFlow()
+
+    private val _chrome = MutableStateFlow(readChrome())
+    val chrome: StateFlow<ChromeFadePrefs> = _chrome.asStateFlow()
 
     var showIcons: Boolean
         get() = prefs.getBoolean(KEY_SHOW_ICONS, true)
@@ -148,6 +153,27 @@ class IconPreferences(private val prefs: SharedPreferences) {
             prefs.edit { putString(KEY_WALLPAPER_STYLE_HASH, value) }
         }
 
+    var drawerFadePercent: Int
+        get() = readPercent(KEY_DRAWER_FADE, LauncherFadeLogic.DEFAULT_DRAWER_FADE)
+        set(value) {
+            prefs.edit { putInt(KEY_DRAWER_FADE, LauncherFadeLogic.clampPercent(value)) }
+            publishChrome()
+        }
+
+    var homeFadePercent: Int
+        get() = readPercent(KEY_HOME_FADE, LauncherFadeLogic.DEFAULT_HOME_FADE)
+        set(value) {
+            prefs.edit { putInt(KEY_HOME_FADE, LauncherFadeLogic.clampPercent(value)) }
+            publishChrome()
+        }
+
+    var drawerBlurPercent: Int
+        get() = readPercent(KEY_DRAWER_BLUR, LauncherFadeLogic.DEFAULT_DRAWER_BLUR)
+        set(value) {
+            prefs.edit { putInt(KEY_DRAWER_BLUR, LauncherFadeLogic.clampPercent(value)) }
+            publishChrome()
+        }
+
     fun applyPack(packId: String?) {
         appliedPackId = packId
     }
@@ -158,6 +184,22 @@ class IconPreferences(private val prefs: SharedPreferences) {
 
     fun notifyIconsChanged() {
         _revision.update { it + 1 }
+    }
+
+    private fun readPercent(key: String, default: Int): Int {
+        return LauncherFadeLogic.clampPercent(prefs.getInt(key, default))
+    }
+
+    private fun readChrome(): ChromeFadePrefs {
+        return ChromeFadePrefs(
+            drawerFadePercent = drawerFadePercent,
+            homeFadePercent = homeFadePercent,
+            drawerBlurPercent = drawerBlurPercent
+        )
+    }
+
+    private fun publishChrome() {
+        _chrome.value = readChrome()
     }
 
     companion object {
@@ -179,5 +221,8 @@ class IconPreferences(private val prefs: SharedPreferences) {
         const val KEY_WALLPAPER_STYLED_ICONS = "key_wallpaper_styled_icons"
         const val KEY_WALLPAPER_STYLE_STRENGTH = "key_wallpaper_style_strength"
         const val KEY_WALLPAPER_STYLE_HASH = "key_wallpaper_style_hash"
+        const val KEY_DRAWER_FADE = "key_drawer_fade_percent"
+        const val KEY_HOME_FADE = "key_home_fade_percent"
+        const val KEY_DRAWER_BLUR = "key_drawer_blur_percent"
     }
 }
