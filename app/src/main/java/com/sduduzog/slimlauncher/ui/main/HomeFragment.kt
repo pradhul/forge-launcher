@@ -26,7 +26,11 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
-import android.widget.PopupMenu
+import android.widget.PopupWindow
+import android.widget.TextView
+import android.widget.Toast
+import android.widget.LinearLayout
+import android.view.ViewGroup.LayoutParams
 import androidx.appcompat.app.AlertDialog
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,9 +70,7 @@ import com.sduduzog.slimlauncher.data.model.App
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.text.DateFormat
-import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
 import javax.inject.Inject
 import kotlin.math.abs
 
@@ -94,7 +96,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     lateinit var iconPreferences: IconPreferences
 
     @Inject
-    lateinit var wallpaperPackCoordinator: com.sduduzog.slimlauncher.wallpaper.WallpaperPackCoordinator
+    lateinit var wallpaperThemeMonitor: com.sduduzog.slimlauncher.wallpaper.WallpaperThemeMonitor
 
     private lateinit var receiver: BroadcastReceiver
     private val blurEnabledListener = java.util.function.Consumer<Boolean> { syncWindowBlur() }
@@ -265,7 +267,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         super.onResume()
         updateClock()
         applyLauncherTheme()
-        wallpaperPackCoordinator.checkCurrentWallpaper()
+        wallpaperThemeMonitor.onHostResume()
         drawerViewModel.refreshBackdrop()
         drawerViewModel.refreshInstalled()
         if (::adapter.isInitialized) {
@@ -337,16 +339,8 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     }
 
     private fun updateClock() {
-        val active = context?.getSharedPreferences(
-            getString(R.string.prefs_settings),
-            Context.MODE_PRIVATE
-        )?.getInt(getString(R.string.prefs_settings_key_time_format), 0)
         val date = Date()
-        val fWatchTime = when (active) {
-            1 -> SimpleDateFormat("H:mm", Locale.ROOT)
-            2 -> SimpleDateFormat("h:mm aa", Locale.ROOT)
-            else -> DateFormat.getTimeInstance(DateFormat.SHORT)
-        }
+        val fWatchTime = DateFormat.getTimeInstance(DateFormat.SHORT)
         binding?.homeFragmentTime?.text = fWatchTime.format(date)
         binding?.homeFragmentDate?.text = HomeDateFormat.format(date)
     }
@@ -412,20 +406,65 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     }
 
     private fun showOverflowMenu(anchor: View) {
-        val popup = PopupMenu(requireContext(), anchor)
-        popup.menu.add(0, MENU_ICON_PACKS, 0, R.string.menu_icon_packs)
-        popup.menu.add(0, MENU_WALLPAPER, 1, R.string.menu_wallpaper_theme)
-        popup.menu.add(0, MENU_SETTINGS, 2, R.string.menu_launcher_settings)
-        popup.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                MENU_ICON_PACKS -> openIconPacks()
-                MENU_WALLPAPER -> openWallpaper()
-                MENU_SETTINGS -> openSettings()
-                else -> return@setOnMenuItemClickListener false
-            }
+        val theme = themeController.active()
+        val content = layoutInflater.inflate(R.layout.overflow_menu, null)
+        val list = content.findViewById<LinearLayout>(R.id.overflow_menu_list)
+        content.setBackgroundColor(theme.background)
+        val popup = PopupWindow(
+            content,
+            (280 * resources.displayMetrics.density).toInt(),
+            LayoutParams.WRAP_CONTENT,
             true
+        )
+        popup.elevation = 12f
+        val items = listOf(
+            OverflowItem(
+                MENU_APPLY_THEME,
+                R.string.menu_apply_theme,
+                R.string.menu_apply_theme_desc
+            ),
+            OverflowItem(MENU_ICON_PACKS, R.string.menu_icon_packs, R.string.menu_icon_packs_desc),
+            OverflowItem(
+                MENU_WALLPAPER,
+                R.string.menu_wallpaper_theme,
+                R.string.menu_wallpaper_theme_desc
+            ),
+            OverflowItem(
+                MENU_SETTINGS,
+                R.string.menu_launcher_settings,
+                R.string.menu_launcher_settings_desc
+            )
+        )
+        items.forEach { item ->
+            val row = layoutInflater.inflate(R.layout.overflow_menu_item, list, false)
+            val title = row.findViewById<TextView>(R.id.overflow_item_title)
+            val description = row.findViewById<TextView>(R.id.overflow_item_description)
+            title.text = getString(item.title)
+            description.text = getString(item.description)
+            title.setTextColor(theme.onBackground)
+            description.setTextColor((theme.onBackground and 0x00FFFFFF) or 0xB3000000.toInt())
+            row.setOnClickListener {
+                popup.dismiss()
+                when (item.id) {
+                    MENU_APPLY_THEME -> applyThemeFromWallpaper()
+                    MENU_ICON_PACKS -> openIconPacks()
+                    MENU_WALLPAPER -> openWallpaper()
+                    MENU_SETTINGS -> openSettings()
+                }
+            }
+            list.addView(row)
         }
-        popup.show()
+        popup.showAsDropDown(anchor)
+    }
+
+    private fun applyThemeFromWallpaper() {
+        Toast.makeText(requireContext(), R.string.theme_applying, Toast.LENGTH_SHORT).show()
+        wallpaperThemeMonitor.applyNow(
+            onDone = {
+                if (!isAdded) return@applyNow
+                Toast.makeText(requireContext(), R.string.theme_applied, Toast.LENGTH_SHORT).show()
+            }
+        )
     }
 
     private fun applyLauncherTheme() {
@@ -544,7 +583,10 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         }
     }
 
+    private data class OverflowItem(val id: Int, val title: Int, val description: Int)
+
     companion object {
+        private const val MENU_APPLY_THEME = 0
         private const val MENU_ICON_PACKS = 1
         private const val MENU_WALLPAPER = 2
         private const val MENU_SETTINGS = 3

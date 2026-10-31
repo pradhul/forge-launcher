@@ -4,6 +4,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
+import com.sduduzog.slimlauncher.R
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
@@ -40,7 +42,25 @@ class WallpaperThemeFragment : BaseFragment() {
                         onUnmeteredOnly = viewModel::setUnmeteredOnly,
                         onStyledIcons = viewModel::setStyledIcons,
                         onStrength = viewModel::setStrength,
-                        onRefreshNow = viewModel::refreshNow
+                        onRefreshNow = viewModel::refreshNow,
+                        onApplyTheme = {
+                            viewModel.applyThemeNow(
+                                onStarted = {
+                                    Toast.makeText(
+                                        requireContext(),
+                                        R.string.theme_applying,
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                onDone = {
+                                    Toast.makeText(
+                                        requireContext(),
+                                        R.string.theme_applied,
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            )
+                        }
                     )
                 }
             }

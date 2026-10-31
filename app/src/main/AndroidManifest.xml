@@ -60,6 +60,7 @@
             android:documentLaunchMode="none"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustNothing"
+            android:configChanges="orientation|keyboardHidden|screenSize|uiMode"
             android:theme="@style/AppTheme"
             tools:ignore="LockedOrientationActivity"
             android:exported="true">

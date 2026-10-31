@@ -2,7 +2,6 @@ package com.sduduzog.slimlauncher.wallpaper
 
 import com.google.common.truth.Truth.assertThat
 import com.sduduzog.slimlauncher.icons.PackTheme
-import com.sduduzog.slimlauncher.icons.PackThemeLogic
 import org.junit.Test
 
 class ThemeSourceLogicTest {
@@ -114,7 +113,7 @@ class ThemeSourceLogicTest {
     }
 
     @Test
-    fun resolveIconPackIgnoresWallpaperTheme() {
+    fun resolveAlwaysPrefersWallpaperWhenPresent() {
         assertThat(
             ThemeSourceLogic.resolve(
                 source = ThemeSource.FROM_ICON_PACK,
@@ -122,15 +121,15 @@ class ThemeSourceLogicTest {
                 packTheme = packTheme,
                 matchBackground = true
             )
-        ).isEqualTo(packTheme)
+        ).isEqualTo(wallpaperTheme)
     }
 
     @Test
-    fun resolveIconPackUsesStockWhenMatchDisabled() {
+    fun resolveFallsBackToPackWhenWallpaperMissing() {
         assertThat(
             ThemeSourceLogic.resolve(
                 source = ThemeSource.FROM_ICON_PACK,
-                wallpaperTheme = wallpaperTheme,
+                wallpaperTheme = null,
                 packTheme = packTheme,
                 matchBackground = false
             )
@@ -138,22 +137,21 @@ class ThemeSourceLogicTest {
     }
 
     @Test
-    fun fromColorsMapsPrimarySecondaryTertiary() {
+    fun fromColorsBuildsReadableWallpaperTheme() {
         val theme = WallpaperThemeLogic.fromColors(
             primary = 0xFF2A1050.toInt(),
             secondary = 0xFF0B0614.toInt(),
             tertiary = 0xFF39F3FF.toInt()
         )
-        assertThat(theme.accent).isEqualTo(0xFF39F3FF.toInt())
         assertThat(theme.background).isNotEqualTo(PackTheme.STOCK.background)
-        assertThat(theme).isEqualTo(
-            PackThemeLogic.fromSwatches(
-                dominant = 0xFF2A1050.toInt(),
-                darkMuted = 0xFF0B0614.toInt(),
-                vibrant = 0xFF39F3FF.toInt(),
-                muted = 0xFF0B0614.toInt()
+        assertThat(theme.darkSurface).isTrue()
+        assertThat(theme.seed).isEqualTo(0xFF2A1050.toInt())
+        assertThat(
+            com.sduduzog.slimlauncher.icons.ContrastPicker.contrastRatio(
+                theme.background,
+                theme.onBackground
             )
-        )
+        ).isAtLeast(com.sduduzog.slimlauncher.icons.ContrastPicker.WCAG_AA)
     }
 
     @Test

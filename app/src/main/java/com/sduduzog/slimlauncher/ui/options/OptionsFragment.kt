@@ -1,6 +1,5 @@
 package com.sduduzog.slimlauncher.ui.options
 
-import android.content.Context.MODE_PRIVATE
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.os.Bundle
@@ -9,15 +8,13 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.SeekBar
+import android.widget.Switch
 import android.widget.TextView
-import androidx.core.content.edit
 import androidx.navigation.Navigation
 import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.databinding.OptionsFragmentBinding
 import com.sduduzog.slimlauncher.icons.IconPreferences
 import com.sduduzog.slimlauncher.icons.PackThemeController
-import com.sduduzog.slimlauncher.ui.dialogs.ChangeThemeDialog
-import com.sduduzog.slimlauncher.ui.dialogs.ChooseTimeFormatDialog
 import com.sduduzog.slimlauncher.utils.BaseFragment
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -50,43 +47,9 @@ class OptionsFragment : BaseFragment() {
             launchActivity(it, intent)
             true
         }
-        binding!!.optionsFragmentChangeTheme.setOnClickListener {
-            val changeThemeDialog = ChangeThemeDialog.getThemeChooser()
-            changeThemeDialog.showNow(childFragmentManager, "THEME_CHOOSER")
-        }
-        binding!!.optionsFragmentChooseTimeFormat.setOnClickListener {
-            val chooseTimeFormatDialog = ChooseTimeFormatDialog.getInstance()
-            chooseTimeFormatDialog.showNow(childFragmentManager, "TIME_FORMAT_CHOOSER")
-        }
         binding!!.optionsFragmentOpenKeyboard.setOnClickListener {
             iconPreferences.openKeyboardOnDrawer = !iconPreferences.openKeyboardOnDrawer
-        }
-        binding!!.optionsFragmentToggleStatusBar.setOnClickListener {
-            val settings = requireContext().getSharedPreferences(
-                getString(R.string.prefs_settings),
-                MODE_PRIVATE
-            )
-            val isHidden =
-                settings.getBoolean(getString(R.string.prefs_settings_key_toggle_status_bar), false)
-            settings.edit {
-                putBoolean(getString(R.string.prefs_settings_key_toggle_status_bar), !isHidden)
-            }
-        }
-        binding!!.optionsFragmentToggleIcons.setOnClickListener {
-            val settings = requireContext().getSharedPreferences(
-                getString(R.string.prefs_settings),
-                MODE_PRIVATE
-            )
-            val showing = settings.getBoolean(
-                getString(R.string.prefs_settings_key_show_icons),
-                true
-            )
-            settings.edit {
-                putBoolean(getString(R.string.prefs_settings_key_show_icons), !showing)
-            }
-        }
-        binding!!.optionsFragmentMatchBackground.setOnClickListener {
-            iconPreferences.matchBackgroundToPack = !iconPreferences.matchBackgroundToPack
+            syncToggles()
         }
         binding!!.optionsFragmentIconPacks.setOnClickListener(
             Navigation.createNavigateOnClickListener(
@@ -99,6 +62,7 @@ class OptionsFragment : BaseFragment() {
             )
         )
         bindFadeControls()
+        syncToggles()
         return binding?.root
     }
 
@@ -106,6 +70,7 @@ class OptionsFragment : BaseFragment() {
         super.onResume()
         applyWallpaperTheme()
         bindFadeControls()
+        syncToggles()
     }
 
     private fun bindFadeControls() {
@@ -120,6 +85,15 @@ class OptionsFragment : BaseFragment() {
         views.optionsFragmentDrawerBlur.setOnSeekBarChangeListener(
             percentListener { iconPreferences.drawerBlurPercent = it }
         )
+    }
+
+    private fun syncToggles() {
+        val views = binding ?: return
+        views.optionsFragmentOpenKeyboardSwitch.setOnCheckedChangeListener(null)
+        views.optionsFragmentOpenKeyboardSwitch.isChecked = iconPreferences.openKeyboardOnDrawer
+        views.optionsFragmentOpenKeyboardSwitch.setOnCheckedChangeListener { _, checked ->
+            iconPreferences.openKeyboardOnDrawer = checked
+        }
     }
 
     private fun updateFadeLabels() {
@@ -159,6 +133,29 @@ class OptionsFragment : BaseFragment() {
         views.optionsFragmentHomeFade.thumbTintList = accent
         views.optionsFragmentDrawerBlur.progressTintList = accent
         views.optionsFragmentDrawerBlur.thumbTintList = accent
+        tintSwitch(views.optionsFragmentOpenKeyboardSwitch, theme.accent, theme.onBackground)
+    }
+
+    private fun tintSwitch(switch: Switch, accent: Int, onBackground: Int) {
+        val thumb = ColorStateList(
+            arrayOf(
+                intArrayOf(android.R.attr.state_checked),
+                intArrayOf()
+            ),
+            intArrayOf(accent, onBackground)
+        )
+        val track = ColorStateList(
+            arrayOf(
+                intArrayOf(android.R.attr.state_checked),
+                intArrayOf()
+            ),
+            intArrayOf(
+                (accent and 0x00FFFFFF) or 0x66000000,
+                (onBackground and 0x00FFFFFF) or 0x33000000
+            )
+        )
+        switch.thumbTintList = thumb
+        switch.trackTintList = track
     }
 
     private fun tintText(view: View, color: Int) {
@@ -176,5 +173,4 @@ class OptionsFragment : BaseFragment() {
         super.onDestroyView()
         _binding = null
     }
-
 }

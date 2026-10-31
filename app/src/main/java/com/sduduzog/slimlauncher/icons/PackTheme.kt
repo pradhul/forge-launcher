@@ -8,7 +8,8 @@ data class PackTheme(
     val onBackground: Int,
     val accent: Int,
     val onAccent: Int,
-    val seed: Int = background
+    val seed: Int = background,
+    val darkSurface: Boolean = ContrastPicker.relativeLuminance(background) < 0.45
 ) {
     fun toJson(): JSONObject {
         return JSONObject()
@@ -18,6 +19,7 @@ data class PackTheme(
             .put("accent", accent)
             .put("onAccent", onAccent)
             .put("seed", seed)
+            .put("darkSurface", darkSurface)
     }
 
     companion object {
@@ -26,19 +28,25 @@ data class PackTheme(
             backgroundEnd = 0xFFF5F5F5.toInt(),
             onBackground = 0xFF080808.toInt(),
             accent = 0xFF080808.toInt(),
-            onAccent = 0xFFFFFFFF.toInt()
+            onAccent = 0xFFFFFFFF.toInt(),
+            darkSurface = false
         )
 
         fun fromJson(json: JSONObject?): PackTheme? {
             if (json == null) return null
             return try {
+                val background = json.getInt("background")
                 PackTheme(
-                    background = json.getInt("background"),
+                    background = background,
                     backgroundEnd = json.getInt("backgroundEnd"),
                     onBackground = json.getInt("onBackground"),
                     accent = json.getInt("accent"),
                     onAccent = json.getInt("onAccent"),
-                    seed = json.optInt("seed", json.getInt("background"))
+                    seed = json.optInt("seed", background),
+                    darkSurface = json.optBoolean(
+                        "darkSurface",
+                        ContrastPicker.relativeLuminance(background) < 0.45
+                    )
                 )
             } catch (_: Exception) {
                 null

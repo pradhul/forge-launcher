@@ -2,6 +2,7 @@ package com.sduduzog.slimlauncher
 
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.res.Configuration
 import android.content.res.Resources
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -165,7 +166,13 @@ class MainActivity : AppCompatActivity(),
     override fun onResume() {
         super.onResume()
         overridePendingTransition(R.anim.forge_fade_in, R.anim.forge_fade_out)
-        toggleStatusBar()
+        showSystemUI()
+        wallpaperThemeMonitor.onHostResume()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        wallpaperThemeMonitor.onUiModeChanged()
     }
 
     override fun onStart() {
@@ -180,24 +187,17 @@ class MainActivity : AppCompatActivity(),
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) toggleStatusBar()
+        if (hasFocus) showSystemUI()
     }
 
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, s: String?) {
-        if (s.equals(getString(R.string.prefs_settings_key_theme), true)) {
-            recreate()
-        }
-        if (s.equals(getString(R.string.prefs_settings_key_toggle_status_bar), true)) {
-            toggleStatusBar()
-        }
+        // Theme now comes from the wallpaper. Status bar is always shown.
     }
 
     override fun getTheme(): Resources.Theme {
         val theme = super.getTheme()
-        settings = getSharedPreferences(getString(R.string.prefs_settings), MODE_PRIVATE)
-        val active = settings.getInt(getString(R.string.prefs_settings_key_theme), 0)
-        theme.applyStyle(resolveTheme(active), true)
+        theme.applyStyle(R.style.AppTheme, true)
         return theme
     }
 
@@ -213,22 +213,9 @@ class MainActivity : AppCompatActivity(),
     }
 
     private fun showSystemUI() {
+        if (!::binding.isInitialized) return
         WindowCompat.getInsetsController(window, binding.root)
             .show(WindowInsetsCompat.Type.statusBars())
-    }
-
-    private fun hideSystemUI() {
-        WindowCompat.getInsetsController(window, binding.root)
-            .hide(WindowInsetsCompat.Type.statusBars())
-    }
-
-    private fun toggleStatusBar() {
-        val isHidden = settings.getBoolean(getString(R.string.prefs_settings_key_toggle_status_bar), false)
-        if (isHidden) {
-            hideSystemUI()
-        } else {
-            showSystemUI()
-        }
     }
 
     companion object {
@@ -238,17 +225,6 @@ class MainActivity : AppCompatActivity(),
         const val EXTRA_SET_WALLPAPER = "forge_set_wallpaper"
         const val EXTRA_DRAWER_BLUR = "forge_drawer_blur"
         const val EXTRA_OPEN_DRAWER = "forge_open_drawer"
-
-        fun resolveTheme(i: Int): Int {
-            return when (i) {
-                1 -> R.style.AppDarkTheme
-                2 -> R.style.AppGreyTheme
-                3 -> R.style.AppTealTheme
-                4 -> R.style.AppCandyTheme
-                5 -> R.style.AppPinkTheme
-                else -> R.style.AppTheme
-            }
-        }
     }
 
     private fun completeBackAction() {

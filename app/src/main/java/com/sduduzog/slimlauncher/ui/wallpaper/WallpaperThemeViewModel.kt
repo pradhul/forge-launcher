@@ -76,6 +76,10 @@ class WallpaperThemeViewModel @Inject constructor(
         monitor.refreshFromSystem()
     }
 
+    fun applyThemeNow(onStarted: () -> Unit, onDone: () -> Unit) {
+        monitor.applyNow(onStarted, onDone)
+    }
+
     private fun snapshot(): WallpaperThemeUiState {
         return WallpaperThemeUiState(
             bingEnabled = prefs.bingWallpaperEnabled,

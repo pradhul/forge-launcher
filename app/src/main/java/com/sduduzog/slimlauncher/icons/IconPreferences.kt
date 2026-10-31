@@ -20,14 +20,10 @@ class IconPreferences(private val prefs: SharedPreferences) {
     val chrome: StateFlow<ChromeFadePrefs> = _chrome.asStateFlow()
 
     var showIcons: Boolean
-        get() = prefs.getBoolean(KEY_SHOW_ICONS, true)
-        set(value) {
-            prefs.edit { putBoolean(KEY_SHOW_ICONS, value) }
-            notifyIconsChanged()
+        get() = true
+        set(@Suppress("UNUSED_PARAMETER") value) {
+            // Toggle Icons was removed. Icons are always drawn.
         }
-
-    // Icons are always drawn. The old toggle key is ignored so a previous
-    // "Toggle Icons" tap cannot leave the launcher blank after an update.
 
     var appliedPackId: String?
         get() = prefs.getString(KEY_APPLIED_PACK_ID, null)?.takeIf { it.isNotBlank() }
@@ -153,6 +149,15 @@ class IconPreferences(private val prefs: SharedPreferences) {
             prefs.edit { putString(KEY_WALLPAPER_STYLE_HASH, value) }
         }
 
+    var lastAppliedPaletteKey: String?
+        get() = prefs.getString(KEY_LAST_PALETTE, null)?.takeIf { it.isNotBlank() }
+        set(value) {
+            prefs.edit {
+                if (value.isNullOrBlank()) remove(KEY_LAST_PALETTE)
+                else putString(KEY_LAST_PALETTE, value)
+            }
+        }
+
     var homeFadePercent: Int
         get() = readPercent(KEY_HOME_FADE, LauncherFadeLogic.DEFAULT_HOME_FADE)
         set(value) {
@@ -213,6 +218,7 @@ class IconPreferences(private val prefs: SharedPreferences) {
         const val KEY_WALLPAPER_STYLED_ICONS = "key_wallpaper_styled_icons"
         const val KEY_WALLPAPER_STYLE_STRENGTH = "key_wallpaper_style_strength"
         const val KEY_WALLPAPER_STYLE_HASH = "key_wallpaper_style_hash"
+        const val KEY_LAST_PALETTE = "key_last_applied_palette"
         const val KEY_HOME_FADE = "key_home_fade_percent"
         const val KEY_DRAWER_BLUR = "key_drawer_blur_percent"
     }

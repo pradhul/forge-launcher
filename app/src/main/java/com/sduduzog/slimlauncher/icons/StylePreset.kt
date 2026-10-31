@@ -4,11 +4,16 @@ enum class BackplateShape { CIRCLE, SQUIRCLE }
 
 enum class GenerationMode(val storageValue: String) {
     ON_DEVICE("on_device"),
-    GEMINI("gemini");
+    GEMINI("gemini"),
+    PALETTE("palette");
 
     companion object {
         fun fromStorage(value: String?): GenerationMode {
-            return if (value == GEMINI.storageValue) GEMINI else ON_DEVICE
+            return when (value) {
+                GEMINI.storageValue -> GEMINI
+                PALETTE.storageValue -> PALETTE
+                else -> ON_DEVICE
+            }
         }
     }
 }

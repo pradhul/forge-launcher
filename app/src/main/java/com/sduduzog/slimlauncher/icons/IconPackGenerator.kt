@@ -98,6 +98,7 @@ class IconPackGenerator @Inject constructor(
             running = true,
             total = apps.size
         )
+        val palette = pack.generatorMode == GenerationMode.PALETTE
         val onDevice = pack.generatorMode == GenerationMode.ON_DEVICE
         val styleContext = if (onDevice) prepareOnDeviceStyle(pack) else null
         try {
@@ -107,7 +108,9 @@ class IconPackGenerator @Inject constructor(
                     it.copy(currentIndex = index, currentAppName = app.appName)
                 }
                 try {
-                    val bytes = if (onDevice && styleContext != null) {
+                    val bytes = if (palette) {
+                        generatePalette(app, pack)
+                    } else if (onDevice && styleContext != null) {
                         generateOnDeviceOrFallback(app, pack, styleContext)
                     } else {
                         val reference = iconResolver.stockIconPng(
@@ -120,7 +123,7 @@ class IconPackGenerator @Inject constructor(
                     store.saveIcon(
                         pack.id,
                         app.packageName,
-                        if (onDevice) bytes else ImageUtils.downscaleToSquarePng(bytes)
+                        if (onDevice || palette) bytes else ImageUtils.downscaleToSquarePng(bytes)
                     )
                     prefs.notifyIconsChanged()
                     _progress.update { it.copy(succeeded = it.succeeded + 1, lastError = null) }
@@ -139,7 +142,7 @@ class IconPackGenerator @Inject constructor(
                         )
                     }
                 }
-                if (!onDevice) {
+                if (!onDevice && !palette) {
                     delay(GEMINI_PACING_MS)
                 }
             }
@@ -165,6 +168,12 @@ class IconPackGenerator @Inject constructor(
         } ?: stylizer.loadPresetStyle(preset)
         val bottleneck = stylizer.predictStyleBottleneck(styleBitmap)
         return OnDeviceStyleContext(preset, styleBitmap, bottleneck)
+    }
+
+    private fun generatePalette(app: App, pack: IconPack): ByteArray {
+        val drawable = stockDrawable(app) ?: iconResolver.fallbackIcon()
+        val theme = pack.theme ?: prefs.wallpaperTheme ?: PackTheme.STOCK
+        return stylizer.recolorWithPalette(drawable, theme, pack.styleStrength)
     }
 
     private fun generateOnDeviceOrFallback(

@@ -9,6 +9,7 @@
     tools:context=".ui.options.OptionsFragment">
 
     <LinearLayout
+        android:id="@+id/options_fragment_list"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
@@ -27,50 +28,98 @@
             android:textAppearance="@style/TextAppearance.AppCompat"
             android:textSize="@dimen/_36ssp" />
 
-        <TextView
+        <LinearLayout
             android:id="@+id/options_fragment_device_settings"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:text="@string/options_fragment_device_settings"
-            android:textAppearance="@style/TextAppearance.AppCompat"
-            android:textSize="@dimen/_20ssp" />
+            android:layout_marginTop="16dp"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:orientation="vertical"
+            android:paddingTop="16dp"
+            android:paddingBottom="16dp">
 
-        <TextView
-            android:id="@+id/options_fragment_change_theme"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:text="@string/options_fragment_change_theme"
-            android:textAppearance="@style/TextAppearance.AppCompat"
-            android:textSize="@dimen/_20ssp" />
+            <TextView
+                android:id="@+id/options_fragment_device_settings_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/options_fragment_device_settings"
+                android:textAppearance="@style/TextAppearance.AppCompat"
+                android:textSize="@dimen/_20ssp" />
 
-        <TextView
-            android:id="@+id/options_fragment_choose_time_format"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:text="@string/options_fragment_choose_time_format"
-            android:textAppearance="@style/TextAppearance.AppCompat"
-            android:textSize="@dimen/_20ssp" />
+            <TextView
+                android:id="@+id/options_fragment_device_settings_desc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/options_fragment_device_settings_desc"
+                android:textAppearance="@style/TextAppearance.AppCompat"
+                android:textSize="12sp" />
+        </LinearLayout>
 
-        <TextView
+        <LinearLayout
             android:id="@+id/options_fragment_open_keyboard"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:text="@string/options_fragment_open_keyboard"
-            android:textAppearance="@style/TextAppearance.AppCompat"
-            android:textSize="@dimen/_20ssp" />
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="16dp"
+            android:paddingBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:paddingEnd="16dp">
+
+                <TextView
+                    android:id="@+id/options_fragment_open_keyboard_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/options_fragment_open_keyboard"
+                    android:textAppearance="@style/TextAppearance.AppCompat"
+                    android:textSize="@dimen/_20ssp" />
+
+                <TextView
+                    android:id="@+id/options_fragment_open_keyboard_desc"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="@string/options_fragment_open_keyboard_desc"
+                    android:textAppearance="@style/TextAppearance.AppCompat"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <Switch
+                android:id="@+id/options_fragment_open_keyboard_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clickable="false"
+                android:focusable="false" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/options_fragment_home_fade_label"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="8dp"
             android:text="@string/options_fragment_home_fade"
             android:textAppearance="@style/TextAppearance.AppCompat"
             android:textSize="@dimen/_20ssp" />
+
+        <TextView
+            android:id="@+id/options_fragment_home_fade_desc"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="@string/options_fragment_home_fade_desc"
+            android:textAppearance="@style/TextAppearance.AppCompat"
+            android:textSize="12sp" />
 
         <SeekBar
             android:id="@+id/options_fragment_home_fade"
@@ -84,10 +133,19 @@
             android:id="@+id/options_fragment_drawer_blur_label"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="16dp"
             android:text="@string/options_fragment_drawer_blur"
             android:textAppearance="@style/TextAppearance.AppCompat"
             android:textSize="@dimen/_20ssp" />
+
+        <TextView
+            android:id="@+id/options_fragment_drawer_blur_desc"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="@string/options_fragment_drawer_blur_desc"
+            android:textAppearance="@style/TextAppearance.AppCompat"
+            android:textSize="12sp" />
 
         <SeekBar
             android:id="@+id/options_fragment_drawer_blur"
@@ -97,49 +155,62 @@
             android:max="100"
             android:progress="50" />
 
-        <TextView
-            android:id="@+id/options_fragment_toggle_status_bar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:text="@string/options_fragment_toggle_status_bar"
-            android:textAppearance="@style/TextAppearance.AppCompat"
-            android:textSize="@dimen/_20ssp" />
-
-        <TextView
-            android:id="@+id/options_fragment_toggle_icons"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:text="@string/options_fragment_toggle_icons"
-            android:textAppearance="@style/TextAppearance.AppCompat"
-            android:textSize="@dimen/_20ssp" />
-
-        <TextView
-            android:id="@+id/options_fragment_match_background"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:text="@string/options_fragment_match_background"
-            android:textAppearance="@style/TextAppearance.AppCompat"
-            android:textSize="@dimen/_20ssp" />
-
-        <TextView
+        <LinearLayout
             android:id="@+id/options_fragment_icon_packs"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:text="@string/options_fragment_icon_packs"
-            android:textAppearance="@style/TextAppearance.AppCompat"
-            android:textSize="@dimen/_20ssp" />
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:orientation="vertical"
+            android:paddingTop="16dp"
+            android:paddingBottom="16dp">
 
-        <TextView
+            <TextView
+                android:id="@+id/options_fragment_icon_packs_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/options_fragment_icon_packs"
+                android:textAppearance="@style/TextAppearance.AppCompat"
+                android:textSize="@dimen/_20ssp" />
+
+            <TextView
+                android:id="@+id/options_fragment_icon_packs_desc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/options_fragment_icon_packs_desc"
+                android:textAppearance="@style/TextAppearance.AppCompat"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <LinearLayout
             android:id="@+id/options_fragment_customise_apps"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:text="@string/options_fragment_customise_apps"
-            android:textAppearance="@style/TextAppearance.AppCompat"
-            android:textSize="@dimen/_20ssp" />
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:orientation="vertical"
+            android:paddingTop="16dp"
+            android:paddingBottom="16dp">
+
+            <TextView
+                android:id="@+id/options_fragment_customise_apps_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/options_fragment_customise_apps"
+                android:textAppearance="@style/TextAppearance.AppCompat"
+                android:textSize="@dimen/_20ssp" />
+
+            <TextView
+                android:id="@+id/options_fragment_customise_apps_desc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/options_fragment_customise_apps_desc"
+                android:textAppearance="@style/TextAppearance.AppCompat"
+                android:textSize="12sp" />
+        </LinearLayout>
     </LinearLayout>
 </ScrollView>

@@ -67,7 +67,7 @@ class PackThemeController @Inject constructor(
             source = source,
             wallpaperTheme = prefs.wallpaperTheme,
             packTheme = pack?.theme,
-            matchBackground = prefs.matchBackgroundToPack
+            matchBackground = true
         )
     }
 }

@@ -77,6 +77,22 @@ class OnDeviceIconStylizer @Inject constructor(
         }
     }
 
+    fun recolorWithPalette(source: Drawable, theme: PackTheme, strength: Float): ByteArray {
+        val plateColor = com.sduduzog.slimlauncher.wallpaper.ForgeThemeMapper.iconBackground(
+            theme.accent,
+            theme.darkSurface
+        )
+        val plate = compositeOnBackplate(source, ICON_SIZE, plateColor)
+        val w = plate.width
+        val h = plate.height
+        val pixels = IntArray(w * h)
+        plate.getPixels(pixels, 0, w, 0, 0, w, h)
+        val processed = PaletteIconRecolor.recolor(pixels, w, h, theme, strength)
+        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        out.setPixels(processed, 0, w, 0, 0, w, h)
+        return ImageUtils.encodePng(out)
+    }
+
     fun styleWithoutTransfer(source: Drawable, preset: StylePreset): ByteArray {
         val plate = compositeOnBackplate(source, ICON_SIZE, preset.backplateColor)
         val finished = postProcessBitmap(plate, preset, 1f)

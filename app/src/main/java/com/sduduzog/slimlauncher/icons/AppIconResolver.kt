@@ -149,7 +149,12 @@ class AppIconResolver @Inject constructor(
         val source = loadStockIcon(packageName, activityName, userSerial) ?: fallbackIcon()
         val preset = StylePreset.byId(pack.stylePresetId)
         return try {
-            val bytes = stylizer.styleWithoutTransfer(source, preset)
+            val bytes = if (pack.generatorMode == GenerationMode.PALETTE) {
+                val theme = pack.theme ?: prefs.wallpaperTheme ?: PackTheme.STOCK
+                stylizer.recolorWithPalette(source, theme, pack.styleStrength)
+            } else {
+                stylizer.styleWithoutTransfer(source, preset)
+            }
             store.saveIcon(pack.id, packageName, bytes)
             decodePackIcon(pack.id, packageName) ?: BitmapDrawable(
                 context.resources,

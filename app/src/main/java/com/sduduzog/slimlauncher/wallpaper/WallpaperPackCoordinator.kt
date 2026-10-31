@@ -1,79 +1,129 @@
 package com.sduduzog.slimlauncher.wallpaper
 
-import android.app.WallpaperManager
-import android.content.Context
 import android.graphics.Bitmap
-import android.os.Build
+import com.sduduzog.slimlauncher.icons.GenerationMode
 import com.sduduzog.slimlauncher.icons.IconPackGenerator
 import com.sduduzog.slimlauncher.icons.IconPreferences
-import com.sduduzog.slimlauncher.icons.IconRasterizer
 import com.sduduzog.slimlauncher.icons.ImageUtils
 import com.sduduzog.slimlauncher.icons.InstalledAppsQuery
 import com.sduduzog.slimlauncher.icons.IconPackStore
 import com.sduduzog.slimlauncher.icons.PackCreateSpec
+import com.sduduzog.slimlauncher.icons.PackTheme
 import com.sduduzog.slimlauncher.icons.PackThemeExtractor
 import com.sduduzog.slimlauncher.icons.StylePreset
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class WallpaperPackCoordinator @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val prefs: IconPreferences,
     private val store: IconPackStore,
     private val generator: IconPackGenerator,
+    private val wallpaperStore: WallpaperBitmapStore,
     private val extractor: PackThemeExtractor,
     private val installedAppsQuery: InstalledAppsQuery
 ) {
-    private val wallpaperManager = WallpaperManager.getInstance(context)
     @Volatile
     private var inFlightKey: String? = null
 
     fun checkCurrentWallpaper() {
-        val bitmap = captureWallpaper() ?: return
-        onWallpaperUpdated(bitmap)
+        val theme = prefs.wallpaperTheme ?: return
+        applyTheme(
+            theme = theme,
+            paletteKey = prefs.lastAppliedPaletteKey ?: "stored",
+            bitmap = forgeBitmap(),
+            force = false
+        )
     }
 
     fun onWallpaperUpdated(bitmap: Bitmap) {
-        prefs.wallpaperTheme = extractor.extract(bitmap)
+        val extracted = extractor.extract(bitmap)
+        val swatches = WallpaperSwatches(
+            primary = extracted.seed,
+            secondary = extracted.background,
+            tertiary = extracted.accent,
+            supportsDarkText = !extracted.darkSurface,
+            supportsDarkTheme = extracted.darkSurface,
+            source = ThemeExtractSource.BITMAP
+        )
+        val theme = ForgeThemeMapper.map(swatches)
+        val key = ForgeThemeMapper.paletteKey(swatches)
+        prefs.lastAppliedPaletteKey = key
+        applyTheme(theme, key, bitmap, force = true)
+    }
+
+    fun applyTheme(
+        theme: PackTheme,
+        paletteKey: String,
+        bitmap: Bitmap?,
+        force: Boolean
+    ) {
+        prefs.wallpaperTheme = theme
         prefs.wallpaperPresent = true
-        val key = currentCacheKey(bitmap)
         if (!prefs.wallpaperStyledIcons) {
             if (prefs.appliedPackId == WallpaperPackLogic.PACK_ID) {
                 prefs.revertToStock()
             }
             return
         }
-        if (!WallpaperPackLogic.shouldRegenerate(
+        val key = if (bitmap != null) {
+            WallpaperPackLogic.cacheKey(
+                "bitmap:$paletteKey",
+                WallpaperPackLogic.strengthHundredths(prefs.wallpaperStyleStrength)
+            )
+        } else {
+            WallpaperPackLogic.cacheKey(
+                "palette:$paletteKey",
+                WallpaperPackLogic.strengthHundredths(prefs.wallpaperStyleStrength)
+            )
+        }
+        if (!force && !WallpaperPackLogic.shouldRegenerate(
                 styledIconsEnabled = true,
                 currentKey = key,
                 cachedKey = prefs.wallpaperStyleHash,
                 inFlightKey = inFlightKey
             )
         ) {
-            if (prefs.appliedPackId != WallpaperPackLogic.PACK_ID) {
-                store.getPack(WallpaperPackLogic.PACK_ID)?.let { prefs.applyPack(it.id) }
+            store.getPack(WallpaperPackLogic.PACK_ID)?.let { pack ->
+                if (prefs.appliedPackId != pack.id) {
+                    prefs.applyPack(pack.id)
+                }
             }
             return
         }
         inFlightKey = key
-        val styleBytes = ImageUtils.encodePng(downscaleStyle(bitmap))
-        val pack = store.createPack(
-            PackCreateSpec(
-                name = "Wallpaper",
-                stylePrompt = "Wallpaper",
-                stylePresetId = StylePreset.WALLPAPER_ID,
-                styleStrength = prefs.wallpaperStyleStrength,
-                customStyleBytes = styleBytes,
-                fixedId = WallpaperPackLogic.PACK_ID
+        val pack = if (bitmap != null) {
+            val styleBytes = ImageUtils.encodePng(downscaleStyle(bitmap))
+            store.createPack(
+                PackCreateSpec(
+                    name = "Wallpaper",
+                    stylePrompt = "Wallpaper",
+                    generatorMode = GenerationMode.ON_DEVICE,
+                    stylePresetId = StylePreset.WALLPAPER_ID,
+                    styleStrength = prefs.wallpaperStyleStrength,
+                    customStyleBytes = styleBytes,
+                    fixedId = WallpaperPackLogic.PACK_ID
+                )
             )
-        )
-        prefs.wallpaperStyleHash = key
-        if (prefs.appliedPackId != pack.id) {
-            prefs.applyPack(pack.id)
+        } else {
+            store.createPack(
+                PackCreateSpec(
+                    name = "Wallpaper",
+                    stylePrompt = "Wallpaper palette",
+                    generatorMode = GenerationMode.PALETTE,
+                    stylePresetId = StylePreset.WALLPAPER_ID,
+                    styleStrength = prefs.wallpaperStyleStrength,
+                    fixedId = WallpaperPackLogic.PACK_ID
+                )
+            )
         }
-        generator.startPack(pack, installedAppsQuery.load())
+        val themed = pack.copy(theme = theme)
+        store.updatePack(themed)
+        prefs.wallpaperStyleHash = key
+        if (prefs.appliedPackId != themed.id) {
+            prefs.applyPack(themed.id)
+        }
+        generator.startPack(themed, installedAppsQuery.load())
         inFlightKey = null
     }
 
@@ -84,34 +134,19 @@ class WallpaperPackCoordinator @Inject constructor(
             return
         }
         prefs.wallpaperStyleHash = null
-        checkCurrentWallpaper()
+        val theme = prefs.wallpaperTheme ?: return
+        applyTheme(theme, prefs.lastAppliedPaletteKey ?: "styled", forgeBitmap(), force = true)
     }
 
     fun setStrength(strength: Float) {
         prefs.wallpaperStyleStrength = strength
         prefs.wallpaperStyleHash = null
-        checkCurrentWallpaper()
+        val theme = prefs.wallpaperTheme ?: return
+        applyTheme(theme, prefs.lastAppliedPaletteKey ?: "strength", forgeBitmap(), force = true)
     }
 
-    private fun currentCacheKey(bitmap: Bitmap): String {
-        val wallpaperId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            WallpaperPackLogic.systemWallpaperId(
-                wallpaperManager.getWallpaperId(WallpaperManager.FLAG_SYSTEM)
-            )
-        } else {
-            null
-        } ?: hashBitmap(bitmap)
-        return WallpaperPackLogic.cacheKey(
-            wallpaperId,
-            WallpaperPackLogic.strengthHundredths(prefs.wallpaperStyleStrength)
-        )
-    }
-
-    private fun captureWallpaper(): Bitmap? {
-        val drawable = runCatching { wallpaperManager.drawable }.getOrNull()
-            ?: runCatching { wallpaperManager.peekDrawable() }.getOrNull()
-            ?: return null
-        return runCatching { IconRasterizer.toBitmap(drawable, STYLE_CAPTURE_PX) }.getOrNull()
+    private fun forgeBitmap(): Bitmap? {
+        return if (wallpaperStore.exists()) wallpaperStore.load() else null
     }
 
     private fun downscaleStyle(bitmap: Bitmap): Bitmap {
@@ -124,13 +159,6 @@ class WallpaperPackCoordinator @Inject constructor(
             (bitmap.height * scale).toInt().coerceAtLeast(1),
             true
         )
-    }
-
-    private fun hashBitmap(bitmap: Bitmap): String {
-        val scaled = Bitmap.createScaledBitmap(bitmap, 16, 16, true)
-        val samples = IntArray(16 * 16)
-        scaled.getPixels(samples, 0, 16, 0, 0, 16, 16)
-        return WallpaperPackLogic.hashSamples(bitmap.width, bitmap.height, samples)
     }
 
     companion object {

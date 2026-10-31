@@ -2,7 +2,6 @@ package com.sduduzog.slimlauncher.wallpaper
 
 import com.sduduzog.slimlauncher.icons.ContrastPicker
 import com.sduduzog.slimlauncher.icons.PackTheme
-import com.sduduzog.slimlauncher.icons.PackThemeLogic
 
 enum class ThemeSource(val id: String) {
     FROM_ICON_PACK("icon_pack"),
@@ -31,15 +30,13 @@ object ThemeSourceLogic {
         source: ThemeSource,
         wallpaperTheme: PackTheme?,
         packTheme: PackTheme?,
-        matchBackground: Boolean
+        matchBackground: Boolean = true
     ): PackTheme {
-        return when (source) {
-            ThemeSource.FROM_WALLPAPER -> {
-                wallpaperTheme ?: PackThemeLogic.resolve(matchBackground, packTheme)
-            }
-            ThemeSource.FROM_ICON_PACK -> {
-                PackThemeLogic.resolve(matchBackground, packTheme)
-            }
+        if (wallpaperTheme != null) return wallpaperTheme
+        return if (matchBackground) {
+            packTheme ?: PackTheme.STOCK
+        } else {
+            PackTheme.STOCK
         }
     }
 }
@@ -54,11 +51,15 @@ object WallpaperThemeLogic {
     const val LIGHT_SEED_LUMINANCE = 0.45
 
     fun fromColors(primary: Int, secondary: Int?, tertiary: Int?): PackTheme {
-        return PackThemeLogic.fromSwatches(
-            dominant = primary,
-            darkMuted = secondary,
-            vibrant = tertiary,
-            muted = secondary
+        return ForgeThemeMapper.map(
+            WallpaperSwatches(
+                primary = primary,
+                secondary = secondary,
+                tertiary = tertiary,
+                supportsDarkText = isLightSeed(primary),
+                supportsDarkTheme = !isLightSeed(primary),
+                source = ThemeExtractSource.WALLPAPER_COLORS
+            )
         )
     }
 
@@ -67,12 +68,7 @@ object WallpaperThemeLogic {
     }
 
     fun scrimTint(seed: Int): Int {
-        val opaque = seed or 0xFF000000.toInt()
-        return if (isLightSeed(opaque)) {
-            mixTowardWhite(opaque, 0.35f)
-        } else {
-            ContrastPicker.ensureDarkBackground(opaque)
-        }
+        return ForgeThemeMapper.surfaceTone(seed)
     }
 
     fun drawerGradient(seed: Int, fadePercent: Int = 100): IntArray {
