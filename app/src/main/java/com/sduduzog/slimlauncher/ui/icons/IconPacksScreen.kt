@@ -1,5 +1,9 @@
 package com.sduduzog.slimlauncher.ui.icons
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.util.TypedValue
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -33,11 +37,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.data.model.App
 import com.sduduzog.slimlauncher.icons.GenerationProgress
 import com.sduduzog.slimlauncher.icons.IconPack
@@ -236,6 +242,7 @@ private fun PackList(
     onOpen: (String) -> Unit,
     onDelete: (String) -> Unit
 ) {
+    val context = LocalContext.current
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -243,6 +250,10 @@ private fun PackList(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("Google AI Studio API key", fontSize = 18.sp)
+        Text(stringResource(R.string.icon_packs_api_key_hint), fontSize = 14.sp)
+        TextButton(onClick = { openApiKeyPage(context) }) {
+            Text(stringResource(R.string.icon_packs_get_api_key))
+        }
         OutlinedTextField(
             value = state.keyDraft,
             onValueChange = onKeyDraftChange,
@@ -267,9 +278,6 @@ private fun PackList(
         }
         TextButton(onClick = onShowCreate, enabled = state.hasApiKey && !generating) {
             Text("Create pack")
-        }
-        if (!state.hasApiKey) {
-            Text("Add an API key from aistudio.google.com/apikey to generate packs.")
         }
         TextButton(onClick = onUseStock) {
             Text(if (state.appliedPackId == null) "Using stock icons" else "Use stock icons")
@@ -423,3 +431,15 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     focusedPlaceholderColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
     unfocusedPlaceholderColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
 )
+
+private fun openApiKeyPage(context: Context) {
+    val intent = Intent(
+        Intent.ACTION_VIEW,
+        Uri.parse(context.getString(R.string.google_ai_studio_api_key_url))
+    )
+    try {
+        context.startActivity(intent)
+    } catch (_: ActivityNotFoundException) {
+        // No browser available; the pasted-key field still works.
+    }
+}

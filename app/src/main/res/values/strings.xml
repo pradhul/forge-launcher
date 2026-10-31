@@ -29,6 +29,9 @@
     <string name="options_fragment_about_slim">About Forge</string>
     <string name="options_fragment_toggle_icons">Toggle Icons</string>
     <string name="options_fragment_icon_packs">Icon Packs</string>
+    <string name="icon_packs_api_key_hint">Create a free key in Google AI Studio</string>
+    <string name="icon_packs_get_api_key">Get API key</string>
+    <string name="google_ai_studio_api_key_url" translatable="false">https://aistudio.google.com/apikey</string>
     <string name="options_fragment_device_settings">Device Settings</string>
     <string name="options_fragment_change_theme">Change Theme</string>
     <string name="options_fragment_choose_time_format">Choose Time Format</string>
