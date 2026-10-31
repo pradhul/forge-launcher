@@ -259,7 +259,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
             else -> DateFormat.getTimeInstance(DateFormat.SHORT)
         }
         binding?.homeFragmentTime?.text = fWatchTime.format(date)
-        binding?.homeFragmentDate?.text = SimpleDateFormat("EEE, MMM dd", Locale.ROOT).format(date)
+        binding?.homeFragmentDate?.text = HomeDateFormat.format(date)
     }
 
     override fun onLaunch(app: HomeApp, view: View) {

@@ -107,6 +107,10 @@ class MainActivity : AppCompatActivity(),
      */
     private fun maybeStartDebugPack(intent: Intent?): Boolean {
         if (!BuildConfig.DEBUG) return false
+        if (intent?.getBooleanExtra(EXTRA_USE_STOCK, false) == true) {
+            iconPreferences.revertToStock()
+            return false
+        }
         val presetId = intent?.getStringExtra(EXTRA_GENERATE_PRESET) ?: return false
         val preset = StylePreset.byId(presetId) ?: return false
         val spec = PackCreateSpec(
@@ -194,6 +198,7 @@ class MainActivity : AppCompatActivity(),
 
     companion object {
         const val EXTRA_GENERATE_PRESET = "forge_generate_preset"
+        const val EXTRA_USE_STOCK = "forge_use_stock"
 
         fun resolveTheme(i: Int): Int {
             return when (i) {

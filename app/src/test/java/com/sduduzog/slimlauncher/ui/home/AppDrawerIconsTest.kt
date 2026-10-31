@@ -43,6 +43,9 @@ class AppDrawerIconsTest {
         )
 
         assertThat(state.apps).isNotEmpty()
+        assertThat(state.apps.size).isAtMost(
+            AppDrawerLogic.filter(apps, "").size
+        )
         state.apps.forEach { item ->
             val rendered = item.icon
             assertThat(rendered).isNotNull()
@@ -50,6 +53,8 @@ class AppDrawerIconsTest {
             assertThat(rendered.height).isGreaterThan(0)
             assertThat(IconRasterizer.hasVisiblePixels(rendered)).isTrue()
         }
+        assertThat(AppDrawerGrid.PHONE_COLUMNS).isEqualTo(4)
+        assertThat(AppDrawerGrid.ICON_DP).isEqualTo(56)
     }
 
     @Test

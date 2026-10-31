@@ -13,7 +13,7 @@ object AppDrawerLogic {
                     it.packageName.contains(needle, ignoreCase = true)
             }
         }
-        return filtered.sortedBy { it.appName.lowercase() }
+        return distinctLaunchers(filtered).sortedBy { it.appName.lowercase() }
     }
 
     fun isPinned(
@@ -22,5 +22,13 @@ object AppDrawerLogic {
         userSerial: Long
     ): Boolean {
         return home.any { it.first == packageName && it.second == userSerial }
+    }
+
+    fun itemKey(app: App): String {
+        return "${app.packageName}:${app.activityName}:${app.userSerial}"
+    }
+
+    fun distinctLaunchers(apps: List<App>): List<App> {
+        return apps.distinctBy { itemKey(it) }
     }
 }

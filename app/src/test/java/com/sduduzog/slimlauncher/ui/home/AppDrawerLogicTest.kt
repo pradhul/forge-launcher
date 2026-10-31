@@ -32,4 +32,22 @@ class AppDrawerLogicTest {
         assertThat(AppDrawerLogic.isPinned(home, "com.android.chrome", 10L)).isFalse()
         assertThat(AppDrawerLogic.isPinned(home, "com.android.camera", 0L)).isFalse()
     }
+
+    @Test
+    fun phoneGridIsFourColumnsWithFiftySixDpIcons() {
+        assertThat(AppDrawerGrid.PHONE_COLUMNS).isEqualTo(4)
+        assertThat(AppDrawerGrid.ICON_DP).isEqualTo(56)
+    }
+
+    @Test
+    fun gridKeysStayUniqueWhenPackageHasTwoLaunchers() {
+        val apps = listOf(
+            App("Google", "com.google.android.googlequicksearchbox", "SearchActivity", 0L),
+            App("Voice Search", "com.google.android.googlequicksearchbox", "VoiceSearchActivity", 0L),
+            App("Google", "com.google.android.googlequicksearchbox", "SearchActivity", 0L)
+        )
+        val keys = AppDrawerLogic.filter(apps, "").map { AppDrawerLogic.itemKey(it) }
+        assertThat(keys).containsNoDuplicates()
+        assertThat(keys).hasSize(2)
+    }
 }

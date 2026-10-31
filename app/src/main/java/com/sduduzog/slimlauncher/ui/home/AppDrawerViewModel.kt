@@ -128,7 +128,7 @@ class AppDrawerViewModel @Inject constructor(
         _icons.value = loaded
     }
 
-    private fun iconKey(app: App) = "${app.packageName}:${app.userSerial}"
+    private fun iconKey(app: App) = AppDrawerLogic.itemKey(app)
 
     companion object {
         private const val ICON_PX = AppIconResolver.ICON_PX

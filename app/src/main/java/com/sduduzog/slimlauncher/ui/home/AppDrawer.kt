@@ -5,8 +5,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,8 +20,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -38,11 +41,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sduduzog.slimlauncher.data.model.App
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
 
 @Composable
 fun AppDrawerOverlay(
@@ -94,16 +97,7 @@ fun AppDrawer(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onDragEnd = {
-                        if (drag > 120f) onClose()
-                        drag = 0f
-                    },
-                    onVerticalDrag = { _, amount -> drag += amount }
-                )
-            }
-            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Box(
             modifier = Modifier
@@ -114,6 +108,15 @@ fun AppDrawer(
                     MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f),
                     MaterialTheme.shapes.small
                 )
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onDragEnd = {
+                            if (drag > 80f) onClose()
+                            drag = 0f
+                        },
+                        onVerticalDrag = { _, amount -> drag += amount }
+                    )
+                }
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -141,16 +144,21 @@ fun AppDrawer(
                 cursorColor = MaterialTheme.colorScheme.onBackground
             )
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
         if (state.apps.isEmpty()) {
             Text(
                 if (state.query.isBlank()) "No launchable apps found." else "No apps match that search.",
                 modifier = Modifier.padding(top = 24.dp)
             )
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                items(state.apps, key = { "${it.app.packageName}:${it.app.userSerial}" }) { item ->
-                    DrawerRow(
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(AppDrawerGrid.PHONE_COLUMNS),
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                items(state.apps, key = { AppDrawerLogic.itemKey(it.app) }) { item ->
+                    DrawerGridCell(
                         item = item,
                         onClick = { onLaunch(item.app) },
                         onLongClick = { selected = item }
@@ -186,37 +194,52 @@ fun AppDrawer(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun DrawerRow(
+private fun DrawerGridCell(
     item: DrawerAppItem,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (item.icon != null) {
             Image(
                 bitmap = item.icon.asImageBitmap(),
                 contentDescription = item.app.appName,
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(AppDrawerGrid.ICON_DP.dp)
             )
         } else {
             Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(AppDrawerGrid.ICON_DP.dp)
                     .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
             )
         }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(item.app.appName, fontSize = 20.sp)
-            if (item.pinned) {
-                Text("On home", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
-            }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = item.app.appName,
+            fontSize = 12.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+        if (item.pinned) {
+            Box(
+                modifier = Modifier
+                    .padding(top = 3.dp)
+                    .size(4.dp)
+                    .background(
+                        MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f),
+                        MaterialTheme.shapes.small
+                    )
+            )
+        } else {
+            Spacer(Modifier.height(7.dp))
         }
     }
 }
