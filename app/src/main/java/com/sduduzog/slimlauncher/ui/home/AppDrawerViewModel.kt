@@ -1,8 +1,6 @@
 package com.sduduzog.slimlauncher.ui.home
 
 import android.graphics.Bitmap
-import android.graphics.drawable.BitmapDrawable
-import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sduduzog.slimlauncher.data.model.App
@@ -114,17 +112,16 @@ class AppDrawerViewModel @Inject constructor(
         val loaded = withContext(Dispatchers.IO) {
             val next = LinkedHashMap<String, Bitmap>(apps.size)
             for (app in apps) {
-                val drawable = iconResolver.resolveDrawable(
-                    app.packageName,
-                    app.activityName,
-                    app.userSerial
-                ) ?: continue
-                val bitmap = if (drawable is BitmapDrawable && drawable.bitmap != null) {
-                    drawable.bitmap
-                } else {
-                    drawable.toBitmap(ICON_PX, ICON_PX)
+                try {
+                    next[iconKey(app)] = iconResolver.resolveBitmap(
+                        app.packageName,
+                        app.activityName,
+                        app.userSerial,
+                        ICON_PX
+                    )
+                } catch (_: Exception) {
+                    // Keep going so one bad icon cannot blank the drawer.
                 }
-                next[iconKey(app)] = bitmap
             }
             next
         }
@@ -134,6 +131,6 @@ class AppDrawerViewModel @Inject constructor(
     private fun iconKey(app: App) = "${app.packageName}:${app.userSerial}"
 
     companion object {
-        private const val ICON_PX = 96
+        private const val ICON_PX = AppIconResolver.ICON_PX
     }
 }

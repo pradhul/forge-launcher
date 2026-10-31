@@ -13,11 +13,19 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import com.sduduzog.slimlauncher.databinding.MainActivityBinding
+import com.sduduzog.slimlauncher.icons.GenerationMode
+import com.sduduzog.slimlauncher.icons.IconPackGenerator
+import com.sduduzog.slimlauncher.icons.IconPackStore
+import com.sduduzog.slimlauncher.icons.IconPreferences
+import com.sduduzog.slimlauncher.icons.InstalledAppsQuery
+import com.sduduzog.slimlauncher.icons.PackCreateSpec
+import com.sduduzog.slimlauncher.icons.StylePreset
 import com.sduduzog.slimlauncher.utils.BaseFragment
 import com.sduduzog.slimlauncher.utils.HomeWatcher
 import com.sduduzog.slimlauncher.utils.IPublisher
 import com.sduduzog.slimlauncher.utils.ISubscriber
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 
 @AndroidEntryPoint
@@ -30,6 +38,11 @@ class MainActivity : AppCompatActivity(),
     private lateinit var homeWatcher: HomeWatcher
     private lateinit var binding: MainActivityBinding
     private val subscribers: MutableSet<BaseFragment> = mutableSetOf()
+
+    @Inject lateinit var iconPackStore: IconPackStore
+    @Inject lateinit var iconPackGenerator: IconPackGenerator
+    @Inject lateinit var iconPreferences: IconPreferences
+    @Inject lateinit var installedAppsQuery: InstalledAppsQuery
     private val backPressedCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
             dispatchBack()
@@ -78,12 +91,36 @@ class MainActivity : AppCompatActivity(),
         homeWatcher = HomeWatcher(this)
         homeWatcher.setOnHomePressedListener(this)
         onBackPressedDispatcher.addCallback(this, backPressedCallback)
+        maybeStartDebugPack(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (maybeStartDebugPack(intent)) return
         goHome()
+    }
+
+    /**
+     * Debug-only hook so emulator verification can generate an on-device
+     * style pack (e.g. neon) without fighting System UI ANR dialogs.
+     */
+    private fun maybeStartDebugPack(intent: Intent?): Boolean {
+        if (!BuildConfig.DEBUG) return false
+        val presetId = intent?.getStringExtra(EXTRA_GENERATE_PRESET) ?: return false
+        val preset = StylePreset.byId(presetId) ?: return false
+        val spec = PackCreateSpec(
+            name = preset.displayName,
+            stylePrompt = preset.displayName,
+            generatorMode = GenerationMode.ON_DEVICE,
+            stylePresetId = preset.id,
+            styleStrength = preset.defaultStrength,
+            customStyleBytes = null
+        )
+        val pack = iconPackStore.createPack(spec)
+        iconPreferences.applyPack(pack.id)
+        iconPackGenerator.startPack(pack, installedAppsQuery.load())
+        return true
     }
 
     override fun onResume() {
@@ -156,6 +193,7 @@ class MainActivity : AppCompatActivity(),
     }
 
     companion object {
+        const val EXTRA_GENERATE_PRESET = "forge_generate_preset"
 
         fun resolveTheme(i: Int): Int {
             return when (i) {

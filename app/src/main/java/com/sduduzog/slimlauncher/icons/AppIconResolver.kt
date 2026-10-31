@@ -3,13 +3,16 @@ package com.sduduzog.slimlauncher.icons
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.LauncherApps
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Process
 import android.os.UserManager
+import android.util.DisplayMetrics
 import android.view.View
 import android.widget.ImageView
+import androidx.core.widget.ImageViewCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,14 +30,35 @@ class AppIconResolver @Inject constructor(
         packageName: String,
         activityName: String,
         userSerial: Long
-    ): Drawable? {
+    ): Drawable {
         val packs = store.listPacks()
         val applied = IconApplyLogic.appliedPackOrNull(prefs.appliedPackId, packs)
-        return when (IconApplyLogic.resolve(prefs.showIcons, applied, packageName)) {
-            ResolvedIcon.Hidden -> null
+        // Always render an icon (pack or stock). A persisted "toggle icons off"
+        // must not blank the whole launcher.
+        return when (IconApplyLogic.resolve(true, applied, packageName)) {
+            ResolvedIcon.Hidden -> fallbackIcon()
             is ResolvedIcon.Pack -> decodePackIcon(applied!!.id, packageName)
                 ?: loadStockIcon(packageName, activityName, userSerial)
+                ?: fallbackIcon()
             ResolvedIcon.Stock -> loadStockIcon(packageName, activityName, userSerial)
+                ?: fallbackIcon()
+        }
+    }
+
+    fun resolveBitmap(
+        packageName: String,
+        activityName: String,
+        userSerial: Long,
+        size: Int = ICON_PX
+    ): Bitmap {
+        val bitmap = IconRasterizer.toBitmap(
+            resolveDrawable(packageName, activityName, userSerial),
+            size
+        )
+        return if (IconRasterizer.hasVisiblePixels(bitmap)) {
+            bitmap
+        } else {
+            IconRasterizer.letterTile(packageName, size)
         }
     }
 
@@ -44,15 +68,17 @@ class AppIconResolver @Inject constructor(
         activityName: String,
         userSerial: Long
     ) {
-        if (!prefs.showIcons) {
-            imageView.visibility = View.GONE
-            imageView.setImageDrawable(null)
-            return
-        }
         imageView.visibility = View.VISIBLE
-        imageView.setImageDrawable(
-            resolveDrawable(packageName, activityName, userSerial)
-                ?: context.packageManager.defaultActivityIcon
+        imageView.imageTintList = null
+        imageView.imageTintMode = null
+        ImageViewCompat.setImageTintList(imageView, null)
+        imageView.clearColorFilter()
+        imageView.colorFilter = null
+        imageView.scaleType = ImageView.ScaleType.FIT_CENTER
+        imageView.adjustViewBounds = false
+        imageView.setImageDrawable(null)
+        imageView.setImageBitmap(
+            resolveBitmap(packageName, activityName, userSerial, ICON_PX)
         )
     }
 
@@ -69,19 +95,34 @@ class AppIconResolver @Inject constructor(
             null
         } ?: Process.myUserHandle()
         val component = ComponentName(packageName, activityName)
-        return try {
-            launcher.getActivityList(packageName, userHandle)
-                .firstOrNull { it.componentName == component }
-                ?.getIcon(0)
-                ?: context.packageManager.getActivityIcon(component)
+        val density = context.resources.displayMetrics.densityDpi
+            .coerceAtLeast(DisplayMetrics.DENSITY_MEDIUM)
+        val pm = context.packageManager
+
+        try {
+            val activities = launcher.getActivityList(packageName, userHandle)
+            val info = activities.firstOrNull { it.componentName == component }
+                ?: activities.firstOrNull()
+            info?.getIcon(density)?.let { return it }
         } catch (_: Exception) {
-            try {
-                context.packageManager.getApplicationIcon(packageName)
-            } catch (_: Exception) {
-                null
-            }
         }
+        try {
+            return pm.getActivityIcon(component)
+        } catch (_: Exception) {
+        }
+        try {
+            return pm.getApplicationIcon(packageName)
+        } catch (_: Exception) {
+        }
+        try {
+            val appInfo = pm.getApplicationInfo(packageName, 0)
+            return appInfo.loadUnbadgedIcon(pm)
+        } catch (_: Exception) {
+        }
+        return null
     }
+
+    fun fallbackIcon(): Drawable = context.packageManager.defaultActivityIcon
 
     fun stockIconPng(
         packageName: String,
@@ -90,12 +131,16 @@ class AppIconResolver @Inject constructor(
         size: Int = 256
     ): ByteArray? {
         val drawable = loadStockIcon(packageName, activityName, userSerial) ?: return null
-        return ImageUtils.drawableToPng(drawable, size)
+        return ImageUtils.encodePng(IconRasterizer.toBitmap(drawable, size))
     }
 
     private fun decodePackIcon(packId: String, packageName: String): Drawable? {
         val file = store.getIconFile(packId, packageName) ?: return null
         val bitmap = BitmapFactory.decodeFile(file.absolutePath) ?: return null
         return BitmapDrawable(context.resources, bitmap)
+    }
+
+    companion object {
+        const val ICON_PX = 128
     }
 }

@@ -19,6 +19,9 @@ class IconPreferences(private val prefs: SharedPreferences) {
             notifyIconsChanged()
         }
 
+    // Icons are always drawn. The old toggle key is ignored so a previous
+    // "Toggle Icons" tap cannot leave the launcher blank after an update.
+
     var appliedPackId: String?
         get() = prefs.getString(KEY_APPLIED_PACK_ID, null)?.takeIf { it.isNotBlank() }
         set(value) {

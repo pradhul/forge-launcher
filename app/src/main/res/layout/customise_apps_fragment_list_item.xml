@@ -14,6 +14,8 @@
         android:layout_marginStart="4dp"
         android:contentDescription="@null"
         android:scaleType="fitCenter"
+        android:tint="@null"
+        app:tint="@null"
         app:layout_constraintBottom_toBottomOf="@+id/ca_list_item_app_name"
         app:layout_constraintStart_toEndOf="@+id/ca_list_item_drag_handle"
         app:layout_constraintTop_toTopOf="@+id/ca_list_item_app_name"
