@@ -24,107 +24,29 @@ data class StylePreset(
 ) {
     companion object {
         const val CUSTOM_ID = "custom"
+        const val WALLPAPER_ID = "wallpaper"
 
-        val ALL: List<StylePreset> = listOf(
-            StylePreset(
-                id = "neon",
-                displayName = "Neon cyberpunk",
-                assetPath = "style_transfer/styles/neon.png",
-                backplate = BackplateShape.SQUIRCLE,
-                backplateColor = 0xFF0B0614.toInt(),
-                defaultStrength = 0.72f,
-                postProcess = PostProcessSpec(
-                    duotoneShadows = 0xFF1A0433.toInt(),
-                    duotoneHighlights = 0xFF39F3FF.toInt(),
-                    duotoneMix = 0.45f,
-                    edgeGlowColor = 0xFFFF2BD6.toInt(),
-                    edgeGlowStrength = 0.85f,
-                    posterizeLevels = null
-                )
-            ),
-            StylePreset(
-                id = "watercolor",
-                displayName = "Watercolor",
-                assetPath = "style_transfer/styles/watercolor.png",
-                backplate = BackplateShape.CIRCLE,
-                backplateColor = 0xFFEDE6DC.toInt(),
-                defaultStrength = 0.65f,
-                postProcess = PostProcessSpec(
-                    palette = intArrayOf(
-                        0xFFF4EDE4.toInt(), 0xFFD9B8A3.toInt(),
-                        0xFF7EA8C5.toInt(), 0xFFC56B5B.toInt()
-                    ),
-                    paletteMix = 0.35f
-                )
-            ),
-            StylePreset(
-                id = "pastel",
-                displayName = "Pastel",
-                assetPath = "style_transfer/styles/pastel.png",
-                backplate = BackplateShape.CIRCLE,
-                backplateColor = 0xFFFFF3F6.toInt(),
-                defaultStrength = 0.6f,
-                postProcess = PostProcessSpec(
-                    palette = intArrayOf(
-                        0xFFFFB7C5.toInt(), 0xFFBAE1FF.toInt(),
-                        0xFFCAE7B9.toInt(), 0xFFFFDFBA.toInt(),
-                        0xFFDDC6F6.toInt()
-                    ),
-                    paletteMix = 0.4f
-                )
-            ),
-            StylePreset(
-                id = "pixel",
-                displayName = "Retro pixel",
-                assetPath = "style_transfer/styles/pixel.png",
-                backplate = BackplateShape.SQUIRCLE,
-                backplateColor = 0xFF141418.toInt(),
-                defaultStrength = 0.7f,
-                postProcess = PostProcessSpec(
-                    posterizeLevels = 5,
-                    edgeGlowColor = 0xFFFFFFFF.toInt(),
-                    edgeGlowStrength = 0.25f
-                )
-            ),
-            StylePreset(
-                id = "ink",
-                displayName = "Monochrome ink",
-                assetPath = "style_transfer/styles/ink.png",
-                backplate = BackplateShape.CIRCLE,
-                backplateColor = 0xFFF5F2E6.toInt(),
-                defaultStrength = 0.68f,
-                postProcess = PostProcessSpec(
-                    duotoneShadows = 0xFF141210.toInt(),
-                    duotoneHighlights = 0xFFF5F2E6.toInt(),
-                    duotoneMix = 0.85f
-                )
-            ),
-            StylePreset(
-                id = "gold",
-                displayName = "Gold metallic",
-                assetPath = "style_transfer/styles/gold.png",
-                backplate = BackplateShape.SQUIRCLE,
-                backplateColor = 0xFF2A1808.toInt(),
-                defaultStrength = 0.7f,
-                postProcess = PostProcessSpec(
-                    duotoneShadows = 0xFF3D2208.toInt(),
-                    duotoneHighlights = 0xFFFFE08A.toInt(),
-                    duotoneMix = 0.7f
-                )
-            )
-        )
-
-        fun byId(id: String?): StylePreset? = ALL.firstOrNull { it.id == id }
-
-        val CUSTOM = StylePreset(
-            id = CUSTOM_ID,
-            displayName = "My photo",
+        val WALLPAPER = StylePreset(
+            id = WALLPAPER_ID,
+            displayName = "Wallpaper",
             assetPath = "",
             backplate = BackplateShape.SQUIRCLE,
             backplateColor = 0xFF111111.toInt(),
             defaultStrength = 0.7f,
             postProcess = PostProcessSpec()
         )
+
+        val CUSTOM = WALLPAPER.copy(
+            id = CUSTOM_ID,
+            displayName = "Custom"
+        )
+
+        fun byId(id: String?): StylePreset {
+            return when (id) {
+                CUSTOM_ID -> CUSTOM
+                else -> WALLPAPER
+            }
+        }
     }
 }
 
@@ -170,5 +92,6 @@ data class PackCreateSpec(
     val generatorMode: GenerationMode = GenerationMode.ON_DEVICE,
     val stylePresetId: String? = null,
     val styleStrength: Float = 0.7f,
-    val customStyleBytes: ByteArray? = null
+    val customStyleBytes: ByteArray? = null,
+    val fixedId: String? = null
 )

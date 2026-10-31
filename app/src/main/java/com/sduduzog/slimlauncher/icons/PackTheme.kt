@@ -7,7 +7,8 @@ data class PackTheme(
     val backgroundEnd: Int,
     val onBackground: Int,
     val accent: Int,
-    val onAccent: Int
+    val onAccent: Int,
+    val seed: Int = background
 ) {
     fun toJson(): JSONObject {
         return JSONObject()
@@ -16,6 +17,7 @@ data class PackTheme(
             .put("onBackground", onBackground)
             .put("accent", accent)
             .put("onAccent", onAccent)
+            .put("seed", seed)
     }
 
     companion object {
@@ -35,7 +37,8 @@ data class PackTheme(
                     backgroundEnd = json.getInt("backgroundEnd"),
                     onBackground = json.getInt("onBackground"),
                     accent = json.getInt("accent"),
-                    onAccent = json.getInt("onAccent")
+                    onAccent = json.getInt("onAccent"),
+                    seed = json.optInt("seed", json.getInt("background"))
                 )
             } catch (_: Exception) {
                 null
@@ -71,7 +74,8 @@ object PackThemeLogic {
             },
             onBackground = onBackground,
             accent = accent,
-            onAccent = onAccent
+            onAccent = onAccent,
+            seed = dominant ?: seed
         )
     }
 

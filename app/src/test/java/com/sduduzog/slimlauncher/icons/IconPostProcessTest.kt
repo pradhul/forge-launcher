@@ -57,9 +57,9 @@ class IconPostProcessTest {
     }
 
     @Test
-    fun builtInPresetsAreSixAndDistinct() {
-        assertThat(StylePreset.ALL).hasSize(6)
-        assertThat(StylePreset.ALL.map { it.id }.toSet()).hasSize(6)
-        assertThat(StylePreset.byId("neon")?.displayName).isEqualTo("Neon cyberpunk")
+    fun wallpaperPresetKeepsColorWithoutDuotone() {
+        assertThat(StylePreset.WALLPAPER.postProcess.duotoneMix).isEqualTo(0f)
+        assertThat(StylePreset.WALLPAPER.assetPath).isEmpty()
+        assertThat(StylePreset.byId("neon").id).isEqualTo(StylePreset.WALLPAPER_ID)
     }
 }

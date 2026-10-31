@@ -38,8 +38,8 @@ class WallpaperThemeFragment : BaseFragment() {
                         state = state,
                         onBingEnabled = viewModel::setBingEnabled,
                         onUnmeteredOnly = viewModel::setUnmeteredOnly,
-                        onLockScreen = viewModel::setLockScreen,
-                        onThemeSource = viewModel::setThemeSource,
+                        onStyledIcons = viewModel::setStyledIcons,
+                        onStrength = viewModel::setStrength,
                         onRefreshNow = viewModel::refreshNow
                     )
                 }

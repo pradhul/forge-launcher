@@ -34,10 +34,7 @@ class PackThemeExtractor @Inject constructor(
         if (custom != null) {
             BitmapFactory.decodeFile(custom.absolutePath)?.let { return it }
         }
-        val preset = when {
-            pack.stylePresetId == StylePreset.CUSTOM_ID -> StylePreset.CUSTOM
-            else -> StylePreset.byId(pack.stylePresetId) ?: StylePreset.ALL.first()
-        }
+        val preset = StylePreset.byId(pack.stylePresetId)
         return stylizer.loadPresetStyle(preset)
     }
 

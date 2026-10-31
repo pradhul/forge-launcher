@@ -159,20 +159,10 @@ class IconPackGenerator @Inject constructor(
     }
 
     private fun prepareOnDeviceStyle(pack: IconPack): OnDeviceStyleContext {
-        val preset = when {
-            pack.stylePresetId == StylePreset.CUSTOM_ID -> StylePreset.CUSTOM
-            else -> StylePreset.byId(pack.stylePresetId) ?: StylePreset.ALL.first()
-        }
-        val styleBitmap = if (preset.id == StylePreset.CUSTOM_ID) {
-            val file = store.getCustomStyleFile(pack.id)
-            if (file != null) {
-                BitmapFactory.decodeFile(file.absolutePath) ?: stylizer.loadPresetStyle(StylePreset.ALL.first())
-            } else {
-                stylizer.loadPresetStyle(StylePreset.ALL.first())
-            }
-        } else {
-            stylizer.loadPresetStyle(preset)
-        }
+        val preset = StylePreset.byId(pack.stylePresetId)
+        val styleBitmap = store.getCustomStyleFile(pack.id)?.let { file ->
+            BitmapFactory.decodeFile(file.absolutePath)
+        } ?: stylizer.loadPresetStyle(preset)
         val bottleneck = stylizer.predictStyleBottleneck(styleBitmap)
         return OnDeviceStyleContext(preset, styleBitmap, bottleneck)
     }

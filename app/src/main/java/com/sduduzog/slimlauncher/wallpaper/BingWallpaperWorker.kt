@@ -32,17 +32,12 @@ class BingWallpaperWorker(
             val image = BingArchiveParser.parse(json)
             val bitmap = downloadFirst(client, BingArchiveParser.candidateUrls(image))
                 ?: error("Could not download Bing image")
-            BingWallpaperApplier.setWallpaper(
-                applicationContext,
-                bitmap,
-                prefs.bingSetLockScreen
-            )
+            BingWallpaperApplier.setWallpaper(applicationContext, bitmap)
             prefs.bingTitle = image.title
             prefs.bingCopyright = image.copyright
             prefs.bingStartdate = image.startdate
             prefs.bingLastError = ""
-            prefs.wallpaperTheme = entry.extractor().extract(bitmap)
-            prefs.wallpaperPresent = true
+            entry.wallpaperPackCoordinator().onWallpaperUpdated(bitmap)
             Result.success()
         } catch (error: Exception) {
             prefs.bingLastError = error.message ?: error.javaClass.simpleName
@@ -65,8 +60,13 @@ class BingWallpaperWorker(
                     if (!response.isSuccessful) null else response.body?.bytes()
                 }
             }.getOrNull() ?: continue
-            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-            if (bitmap != null) return bitmap
+            val bitmap = BitmapFactory.decodeByteArray(
+                bytes,
+                0,
+                bytes.size,
+                BingWallpaperApplier.colorDecodeOptions()
+            )
+            if (bitmap != null) return BingWallpaperApplier.ensureFullColor(bitmap)
         }
         return null
     }

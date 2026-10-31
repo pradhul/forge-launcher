@@ -30,8 +30,9 @@ class FileIconPackStore(private val rootDir: File) : IconPackStore {
     override fun createPack(spec: PackCreateSpec, createdAtMillis: Long): IconPack {
         val trimmedName = spec.name.trim()
         val trimmedPrompt = spec.stylePrompt.trim()
-        val packId = UUID.randomUUID().toString()
-        var customPath: String? = null
+        val packId = spec.fixedId?.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString()
+        val existing = spec.fixedId?.let { getPack(it) }
+        var customPath = existing?.customStylePath
         if (spec.customStyleBytes != null) {
             customPath = CUSTOM_STYLE_NAME
             val file = File(packDir(packId), customPath)
@@ -41,18 +42,20 @@ class FileIconPackStore(private val rootDir: File) : IconPackStore {
         val pack = IconPack(
             id = packId,
             name = trimmedName.ifBlank {
-                StylePreset.byId(spec.stylePresetId)?.displayName
-                    ?: trimmedPrompt.ifBlank { "Untitled" }
+                existing?.name
+                    ?: trimmedPrompt.ifBlank { StylePreset.byId(spec.stylePresetId).displayName }
             },
             stylePrompt = trimmedPrompt.ifBlank {
-                StylePreset.byId(spec.stylePresetId)?.displayName.orEmpty()
+                existing?.stylePrompt
+                    ?: StylePreset.byId(spec.stylePresetId).displayName
             },
-            createdAtMillis = createdAtMillis,
-            icons = emptyMap(),
+            createdAtMillis = existing?.createdAtMillis ?: createdAtMillis,
+            icons = existing?.icons ?: emptyMap(),
             generatorMode = spec.generatorMode,
-            stylePresetId = spec.stylePresetId,
+            stylePresetId = spec.stylePresetId ?: existing?.stylePresetId,
             styleStrength = spec.styleStrength.coerceIn(0f, 1f),
-            customStylePath = customPath
+            customStylePath = customPath,
+            theme = existing?.theme
         )
         writeManifest(pack)
         return pack

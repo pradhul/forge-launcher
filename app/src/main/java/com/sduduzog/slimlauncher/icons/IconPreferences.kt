@@ -128,6 +128,26 @@ class IconPreferences(private val prefs: SharedPreferences) {
             notifyIconsChanged()
         }
 
+    var wallpaperStyledIcons: Boolean
+        get() = prefs.getBoolean(KEY_WALLPAPER_STYLED_ICONS, true)
+        set(value) {
+            prefs.edit { putBoolean(KEY_WALLPAPER_STYLED_ICONS, value) }
+            notifyIconsChanged()
+        }
+
+    var wallpaperStyleStrength: Float
+        get() = prefs.getFloat(KEY_WALLPAPER_STYLE_STRENGTH, 0.7f).coerceIn(0.2f, 1f)
+        set(value) {
+            prefs.edit { putFloat(KEY_WALLPAPER_STYLE_STRENGTH, value.coerceIn(0.2f, 1f)) }
+            notifyIconsChanged()
+        }
+
+    var wallpaperStyleHash: String?
+        get() = prefs.getString(KEY_WALLPAPER_STYLE_HASH, null)?.takeIf { it.isNotBlank() }
+        set(value) {
+            prefs.edit { putString(KEY_WALLPAPER_STYLE_HASH, value) }
+        }
+
     fun applyPack(packId: String?) {
         appliedPackId = packId
     }
@@ -156,5 +176,8 @@ class IconPreferences(private val prefs: SharedPreferences) {
         const val KEY_BING_STARTDATE = "key_bing_startdate"
         const val KEY_BING_ERROR = "key_bing_last_error"
         const val KEY_OPEN_KEYBOARD = "key_open_keyboard_on_drawer"
+        const val KEY_WALLPAPER_STYLED_ICONS = "key_wallpaper_styled_icons"
+        const val KEY_WALLPAPER_STYLE_STRENGTH = "key_wallpaper_style_strength"
+        const val KEY_WALLPAPER_STYLE_HASH = "key_wallpaper_style_hash"
     }
 }

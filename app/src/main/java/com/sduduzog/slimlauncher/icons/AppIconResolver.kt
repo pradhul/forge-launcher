@@ -147,10 +147,7 @@ class AppIconResolver @Inject constructor(
         userSerial: Long
     ): Drawable {
         val source = loadStockIcon(packageName, activityName, userSerial) ?: fallbackIcon()
-        val preset = when {
-            pack.stylePresetId == StylePreset.CUSTOM_ID -> StylePreset.CUSTOM
-            else -> StylePreset.byId(pack.stylePresetId) ?: StylePreset.ALL.first()
-        }
+        val preset = StylePreset.byId(pack.stylePresetId)
         return try {
             val bytes = stylizer.styleWithoutTransfer(source, preset)
             store.saveIcon(pack.id, packageName, bytes)

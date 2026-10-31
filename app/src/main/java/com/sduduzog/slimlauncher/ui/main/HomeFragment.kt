@@ -76,6 +76,9 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     @Inject
     lateinit var themeController: PackThemeController
 
+    @Inject
+    lateinit var wallpaperPackCoordinator: com.sduduzog.slimlauncher.wallpaper.WallpaperPackCoordinator
+
     private lateinit var receiver: BroadcastReceiver
 
     override fun onCreateView(
@@ -105,7 +108,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     private fun setupDrawer() {
         binding!!.homeFragmentDrawer.setContent {
             val state by drawerViewModel.ui.collectAsStateWithLifecycle()
-            ForgeTheme(theme = state.theme, translucent = true) {
+            ForgeTheme(theme = state.theme, drawerScrim = true) {
                 AppDrawerOverlay(
                     visible = drawerOpen,
                     state = state,
@@ -210,6 +213,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         super.onResume()
         updateClock()
         applyLauncherTheme()
+        wallpaperPackCoordinator.checkCurrentWallpaper()
         drawerViewModel.refreshInstalled()
         if (::adapter.isInitialized) {
             adapter.notifyDataSetChanged()
@@ -361,12 +365,15 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     private fun applyLauncherTheme() {
         val theme = themeController.active()
         val root = binding?.homeFragment ?: return
-        root.background = GradientDrawable(
+        root.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+        val seed = theme.seed
+        binding?.homeFragmentTopScrim?.background = GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
-            intArrayOf(
-                WallpaperThemeLogic.scrim(theme.background),
-                WallpaperThemeLogic.scrim(theme.backgroundEnd, WallpaperThemeLogic.SCRIM_END_ALPHA)
-            )
+            intArrayOf(WallpaperThemeLogic.homeClockScrim(seed), 0x00000000)
+        )
+        binding?.homeFragmentBottomScrim?.background = GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(0x00000000, WallpaperThemeLogic.homeDockScrim(seed))
         )
         binding?.homeFragmentTime?.setTextColor(theme.onBackground)
         binding?.homeFragmentDate?.setTextColor(theme.onBackground)

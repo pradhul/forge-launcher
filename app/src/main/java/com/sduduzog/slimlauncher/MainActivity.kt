@@ -125,13 +125,16 @@ class MainActivity : AppCompatActivity(),
         val customPath = intent?.getStringExtra(EXTRA_CUSTOM_STYLE)
         if (!customPath.isNullOrBlank()) {
             val bytes = runCatching { File(customPath).readBytes() }.getOrNull() ?: return false
+            iconPreferences.wallpaperStyledIcons = true
+            iconPreferences.wallpaperStyleHash = null
             val spec = PackCreateSpec(
-                name = "My photo",
-                stylePrompt = "My photo",
+                name = "Wallpaper",
+                stylePrompt = "Wallpaper",
                 generatorMode = GenerationMode.ON_DEVICE,
-                stylePresetId = StylePreset.CUSTOM_ID,
-                styleStrength = StylePreset.CUSTOM.defaultStrength,
-                customStyleBytes = bytes
+                stylePresetId = StylePreset.WALLPAPER_ID,
+                styleStrength = iconPreferences.wallpaperStyleStrength,
+                customStyleBytes = bytes,
+                fixedId = com.sduduzog.slimlauncher.wallpaper.WallpaperPackLogic.PACK_ID
             )
             val pack = iconPackStore.createPack(spec)
             packThemeExtractor.ensureTheme(pack.id)
@@ -139,21 +142,11 @@ class MainActivity : AppCompatActivity(),
             iconPackGenerator.startPack(pack, installedAppsQuery.load())
             return true
         }
-        val presetId = intent?.getStringExtra(EXTRA_GENERATE_PRESET) ?: return false
-        val preset = StylePreset.byId(presetId) ?: return false
-        val spec = PackCreateSpec(
-            name = preset.displayName,
-            stylePrompt = preset.displayName,
-            generatorMode = GenerationMode.ON_DEVICE,
-            stylePresetId = preset.id,
-            styleStrength = preset.defaultStrength,
-            customStyleBytes = null
-        )
-        val pack = iconPackStore.createPack(spec)
-        packThemeExtractor.ensureTheme(pack.id)
-        iconPreferences.applyPack(pack.id)
-        iconPackGenerator.startPack(pack, installedAppsQuery.load())
-        return true
+        if (intent?.getStringExtra(EXTRA_GENERATE_PRESET) != null) {
+            wallpaperThemeMonitor.refreshFromSystem()
+            return true
+        }
+        return false
     }
 
     override fun onResume() {

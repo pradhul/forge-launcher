@@ -13,4 +13,5 @@ interface WallpaperEntryPoint {
     fun iconPreferences(): IconPreferences
     fun okHttp(): OkHttpClient
     fun extractor(): PackThemeExtractor
+    fun wallpaperPackCoordinator(): WallpaperPackCoordinator
 }

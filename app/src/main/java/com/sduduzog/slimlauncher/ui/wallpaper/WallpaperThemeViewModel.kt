@@ -7,8 +7,7 @@ import com.sduduzog.slimlauncher.icons.IconPreferences
 import com.sduduzog.slimlauncher.icons.PackTheme
 import com.sduduzog.slimlauncher.icons.PackThemeController
 import com.sduduzog.slimlauncher.wallpaper.BingWallpaperScheduler
-import com.sduduzog.slimlauncher.wallpaper.ThemeSource
-import com.sduduzog.slimlauncher.wallpaper.ThemeSourceLogic
+import com.sduduzog.slimlauncher.wallpaper.WallpaperPackCoordinator
 import com.sduduzog.slimlauncher.wallpaper.WallpaperThemeMonitor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -21,11 +20,11 @@ import javax.inject.Inject
 data class WallpaperThemeUiState(
     val bingEnabled: Boolean = false,
     val unmeteredOnly: Boolean = true,
-    val setLockScreen: Boolean = false,
     val title: String = "",
     val copyright: String = "",
     val lastError: String = "",
-    val themeSource: ThemeSource = ThemeSource.FROM_ICON_PACK,
+    val styledIcons: Boolean = true,
+    val strength: Float = 0.7f,
     val theme: PackTheme = PackTheme.STOCK
 )
 
@@ -34,7 +33,8 @@ class WallpaperThemeViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val prefs: IconPreferences,
     private val themeController: PackThemeController,
-    private val monitor: WallpaperThemeMonitor
+    private val monitor: WallpaperThemeMonitor,
+    private val coordinator: WallpaperPackCoordinator
 ) : ViewModel() {
 
     val ui: StateFlow<WallpaperThemeUiState> = prefs.revision.map { snapshot() }
@@ -54,13 +54,12 @@ class WallpaperThemeViewModel @Inject constructor(
         prefs.notifyIconsChanged()
     }
 
-    fun setLockScreen(enabled: Boolean) {
-        prefs.bingSetLockScreen = enabled
-        prefs.notifyIconsChanged()
+    fun setStyledIcons(enabled: Boolean) {
+        coordinator.setStyledIcons(enabled)
     }
 
-    fun setThemeSource(source: ThemeSource) {
-        prefs.themeSource = source
+    fun setStrength(value: Float) {
+        coordinator.setStrength(value)
     }
 
     fun refreshNow() {
@@ -77,15 +76,11 @@ class WallpaperThemeViewModel @Inject constructor(
         return WallpaperThemeUiState(
             bingEnabled = prefs.bingWallpaperEnabled,
             unmeteredOnly = prefs.bingUnmeteredOnly,
-            setLockScreen = prefs.bingSetLockScreen,
             title = prefs.bingTitle,
             copyright = prefs.bingCopyright,
             lastError = prefs.bingLastError,
-            themeSource = ThemeSourceLogic.selected(
-                explicitId = prefs.themeSourceId,
-                bingEnabled = prefs.bingWallpaperEnabled,
-                wallpaperSet = prefs.wallpaperPresent
-            ),
+            styledIcons = prefs.wallpaperStyledIcons,
+            strength = prefs.wallpaperStyleStrength,
             theme = themeController.active()
         )
     }
