@@ -1,3 +1,6 @@
+import java.io.File
+import java.util.zip.ZipFile
+
 plugins {
     id("com.android.application")
     id("dagger.hilt.android.plugin")
@@ -14,7 +17,7 @@ android {
         minSdk = 23
         targetSdk = 36
         versionName = "1.0.0"
-        versionCode = 64
+        versionCode = 65
         vectorDrawables { useSupportLibrary = true }
         ndk {
             abiFilters += ((project.findProperty("forgeAbi") as? String)?.takeIf { it.isNotBlank() }
@@ -60,7 +63,7 @@ android {
     }
     packaging {
         jniLibs {
-            useLegacyPackaging = true
+            useLegacyPackaging = false
             val keepAbi = (project.findProperty("forgeAbi") as? String)?.takeIf { it.isNotBlank() }
                 ?: "arm64-v8a"
             val allAbis = listOf("armeabi", "armeabi-v7a", "arm64-v8a", "x86", "x86_64", "mips", "mips64")
@@ -129,15 +132,17 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
 
-    implementation("org.tensorflow:tensorflow-lite:2.16.1")
-    implementation("org.tensorflow:tensorflow-lite-gpu:2.16.1")
-    implementation("org.tensorflow:tensorflow-lite-gpu-api:2.16.1")
+    // LiteRT 1.4+ ships 16 KB-aligned natives and keeps Interpreter + GPU.
+    implementation("com.google.ai.edge.litert:litert:1.4.2")
+    implementation("com.google.ai.edge.litert:litert-gpu:1.4.2")
+    implementation("com.google.ai.edge.litert:litert-support:1.4.2")
 
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.graphics:graphics-path:1.1.0")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
@@ -158,5 +163,128 @@ kapt {
     correctErrorTypes = true
     arguments {
         arg("room.schemaLocation", "$projectDir/schemas")
+    }
+}
+
+configurations.configureEach {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "androidx.graphics" && requested.name == "graphics-path") {
+            useVersion("1.1.0")
+            because("16 KB page-size ELF alignment")
+        }
+    }
+}
+
+val check16kbAlignment = tasks.register("check16kbAlignment") {
+    group = "verification"
+    description = "Require 16 KB PT_LOAD alignment in arm64-v8a .so files and zipalign -P 16"
+    dependsOn("packageDebug")
+    doLast {
+        val apk = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk").get().asFile
+        require(apk.isFile) { "Missing debug APK at ${apk.absolutePath}" }
+        val reports = ArrayList<String>()
+        var failures = 0
+        ZipFile(apk).use { zip ->
+            val sos = zip.entries().asSequence()
+                .filter { !it.isDirectory && it.name.startsWith("lib/arm64-v8a/") && it.name.endsWith(".so") }
+                .toList()
+            require(sos.isNotEmpty()) { "${apk.name} has no lib/arm64-v8a/*.so" }
+            for (entry in sos.sortedBy { it.name }) {
+                val bytes = zip.getInputStream(entry).use { it.readBytes() }
+                val line = reportElfLoadAlign(entry.name, bytes)
+                reports.add(line)
+                logger.lifecycle(line)
+                if (line.startsWith("FAIL")) failures += 1
+            }
+        }
+        val zipalign = findZipalign(android.sdkDirectory)
+        val zipOut = providers.exec {
+            commandLine(
+                zipalign.absolutePath,
+                "-c",
+                "-P",
+                "16",
+                "-v",
+                "4",
+                apk.absolutePath
+            )
+            isIgnoreExitValue = true
+        }.standardOutput.asText.get()
+        logger.lifecycle(zipOut.trim())
+        val zipOk = zipOut.contains("Verification succesful") ||
+            zipOut.contains("Verification successful")
+        if (!zipOk) {
+            failures += 1
+            reports.add("FAIL zipalign -c -P 16 -v 4")
+        } else {
+            reports.add("OK zipalign -c -P 16 -v 4")
+        }
+        val reportFile = layout.buildDirectory.file("outputs/apk/debug/16kb-alignment.txt").get().asFile
+        reportFile.parentFile.mkdirs()
+        reportFile.writeText(reports.joinToString("\n") + "\n")
+        if (failures > 0) {
+            throw GradleException(
+                "16 KB alignment check failed ($failures). See ${reportFile.absolutePath}"
+            )
+        }
+    }
+}
+
+tasks.matching { it.name == "assembleDebug" }.configureEach {
+    finalizedBy(check16kbAlignment)
+}
+
+fun findZipalign(sdkDir: File): File {
+    val tools = File(sdkDir, "build-tools")
+    val latest = tools.listFiles()
+        ?.filter { File(it, "zipalign").isFile || File(it, "zipalign.exe").isFile }
+        ?.maxByOrNull { it.name }
+        ?: throw GradleException("zipalign not found under ${tools.absolutePath}")
+    val bin = File(latest, "zipalign")
+    return if (bin.isFile) bin else File(latest, "zipalign.exe")
+}
+
+fun reportElfLoadAlign(name: String, bytes: ByteArray): String {
+    if (bytes.size < 64 ||
+        bytes[0] != 0x7f.toByte() ||
+        bytes[1] != 'E'.code.toByte() ||
+        bytes[2] != 'L'.code.toByte() ||
+        bytes[3] != 'F'.code.toByte()
+    ) {
+        return "FAIL $name not ELF"
+    }
+    if (bytes[4].toInt() != 2 || bytes[5].toInt() != 1) {
+        return "FAIL $name not ELF64 LE"
+    }
+    fun u16(offset: Int): Int {
+        return (bytes[offset].toInt() and 0xFF) or
+            ((bytes[offset + 1].toInt() and 0xFF) shl 8)
+    }
+    fun u32(offset: Int): Int {
+        return (bytes[offset].toInt() and 0xFF) or
+            ((bytes[offset + 1].toInt() and 0xFF) shl 8) or
+            ((bytes[offset + 2].toInt() and 0xFF) shl 16) or
+            ((bytes[offset + 3].toInt() and 0xFF) shl 24)
+    }
+    fun u64(offset: Int): Long {
+        return (u32(offset).toLong() and 0xFFFFFFFFL) or
+            ((u32(offset + 4).toLong() and 0xFFFFFFFFL) shl 32)
+    }
+    val phoff = u64(32)
+    val phentsize = u16(54)
+    val phnum = u16(56)
+    if (phentsize < 56) return "FAIL $name phdr too small"
+    val aligns = ArrayList<Long>()
+    for (index in 0 until phnum) {
+        val base = phoff.toInt() + index * phentsize
+        if (u32(base) != 1) continue
+        aligns.add(u64(base + 48))
+    }
+    val minAlign = aligns.minOrNull() ?: 0L
+    val bad = aligns.filter { it < 0x4000L }
+    return if (bad.isEmpty()) {
+        "OK $name loads=${aligns.size} min_p_align=0x${minAlign.toString(16)}"
+    } else {
+        "FAIL $name unaligned=" + bad.joinToString { "0x${it.toString(16)}" }
     }
 }

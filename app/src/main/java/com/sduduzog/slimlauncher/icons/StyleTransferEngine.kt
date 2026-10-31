@@ -16,8 +16,9 @@ import java.nio.channels.FileChannel
 import kotlin.math.roundToInt
 
 /**
- * Magenta arbitrary-image-stylization-v1-256 (int8 TFLite).
+ * Magenta arbitrary-image-stylization-v1-256 (int8 LiteRT / TFLite).
  * GPU delegate first, CPU threads if the delegate cannot be created.
+ * Runtime is Google AI Edge LiteRT; Java types stay org.tensorflow.lite.
  */
 class StyleTransferEngine(context: Context) : AutoCloseable {
 

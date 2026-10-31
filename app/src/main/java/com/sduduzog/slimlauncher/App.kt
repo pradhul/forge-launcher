@@ -1,8 +1,8 @@
 package com.sduduzog.slimlauncher
 
 import android.app.Application
-import android.os.StrictMode
 import com.sduduzog.slimlauncher.diag.DebugLogStore
+import com.sduduzog.slimlauncher.diag.ForgeStrictMode
 import com.sduduzog.slimlauncher.diag.MainThreadStallWatchdog
 import com.sduduzog.slimlauncher.icons.IconPreferences
 import com.sduduzog.slimlauncher.wallpaper.BingWallpaperScheduler
@@ -17,14 +17,7 @@ class App : Application() {
 
     override fun onCreate() {
         if (BuildConfig.DEBUG) {
-            StrictMode.setThreadPolicy(
-                StrictMode.ThreadPolicy.Builder()
-                    .detectDiskReads()
-                    .detectDiskWrites()
-                    .detectNetwork()
-                    .penaltyLog()
-                    .build()
-            )
+            ForgeStrictMode.install()
         }
         super.onCreate()
         DebugLogStore.dumpStartup(this)

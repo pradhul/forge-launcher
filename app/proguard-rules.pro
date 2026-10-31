@@ -25,6 +25,8 @@
 -keep class org.tensorflow.lite.** { *; }
 -keep class org.tensorflow.lite.gpu.** { *; }
 -keep class org.tensorflow.lite.nnapi.** { *; }
+-keep class com.google.ai.edge.litert.** { *; }
+-keep class com.google.android.gms.tflite.** { *; }
 
 # Debug APK: shrink unused code/resources without renaming, so it still
 # installs over the previous debug build and stack traces stay readable.
@@ -37,6 +39,7 @@
 -keep class * extends androidx.room.RoomDatabase
 -dontwarn org.tensorflow.lite.**
 -dontwarn org.tensorflow.lite.gpu.**
+-dontwarn com.google.ai.edge.litert.**
 -dontwarn com.google.errorprone.annotations.CanIgnoreReturnValue
 -dontwarn com.google.errorprone.annotations.CheckReturnValue
 -dontwarn com.google.errorprone.annotations.Immutable
