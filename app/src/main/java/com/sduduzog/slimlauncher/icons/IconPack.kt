@@ -9,7 +9,8 @@ data class IconPack(
     val generatorMode: GenerationMode = GenerationMode.ON_DEVICE,
     val stylePresetId: String? = null,
     val styleStrength: Float = 0.7f,
-    val customStylePath: String? = null
+    val customStylePath: String? = null,
+    val theme: PackTheme? = null
 ) {
     val iconCount: Int get() = icons.size
 }

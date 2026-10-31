@@ -9,6 +9,8 @@ import com.sduduzog.slimlauncher.icons.IconPackGenerator
 import com.sduduzog.slimlauncher.icons.IconPackStore
 import com.sduduzog.slimlauncher.icons.IconPreferences
 import com.sduduzog.slimlauncher.icons.InstalledAppsQuery
+import com.sduduzog.slimlauncher.icons.PackTheme
+import com.sduduzog.slimlauncher.icons.PackThemeController
 import com.sduduzog.slimlauncher.models.HomeApp
 import com.sduduzog.slimlauncher.models.Repository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -31,7 +33,9 @@ data class DrawerAppItem(
 data class AppDrawerUiState(
     val query: String = "",
     val apps: List<DrawerAppItem> = emptyList(),
-    val canRegenerate: Boolean = false
+    val canRegenerate: Boolean = false,
+    val theme: PackTheme = PackTheme.STOCK,
+    val frequent: List<DrawerAppItem> = emptyList()
 )
 
 @HiltViewModel
@@ -41,7 +45,9 @@ class AppDrawerViewModel @Inject constructor(
     private val iconResolver: AppIconResolver,
     private val prefs: IconPreferences,
     private val store: IconPackStore,
-    private val generator: IconPackGenerator
+    private val generator: IconPackGenerator,
+    private val themeController: PackThemeController,
+    private val launchStore: LaunchStore
 ) : ViewModel() {
 
     private val _query = MutableStateFlow("")
@@ -50,27 +56,42 @@ class AppDrawerViewModel @Inject constructor(
     private val _icons = MutableStateFlow<Map<String, Bitmap>>(emptyMap())
 
     val ui: StateFlow<AppDrawerUiState> = combine(
-        _query,
-        _installed,
-        _home,
-        _icons,
-        prefs.revision
-    ) { query, installed, home, icons, _ ->
-        val pins = home.map { it.packageName to it.userSerial }
-        val items = AppDrawerLogic.filter(installed, query).map { app ->
-            DrawerAppItem(
-                app = app,
-                pinned = AppDrawerLogic.isPinned(pins, app.packageName, app.userSerial),
-                icon = icons[iconKey(app)]
-            )
+        combine(_query, _installed, _home, _icons) { query, installed, home, icons ->
+            DrawerSnapshot(query, installed, home, icons)
+        },
+        prefs.revision,
+        launchStore.revision
+    ) { snapshot, _, _ ->
+        val pins = snapshot.home.map { it.packageName to it.userSerial }
+        fun itemOf(app: App) = DrawerAppItem(
+            app = app,
+            pinned = AppDrawerLogic.isPinned(pins, app.packageName, app.userSerial),
+            icon = snapshot.icons[iconKey(app)]
+        )
+        val items = AppDrawerLogic.filter(snapshot.installed, snapshot.query).map(::itemOf)
+        val byKey = snapshot.installed.associateBy { iconKey(it) }
+        val frequentKeys = launchStore.rankedKeys()
+        val frequent = if (LaunchRanker.shouldShowFrequent(snapshot.query, frequentKeys)) {
+            frequentKeys.mapNotNull { byKey[it]?.let(::itemOf) }
+        } else {
+            emptyList()
         }
         AppDrawerUiState(
-            query = query,
+            query = snapshot.query,
             apps = items,
             canRegenerate = !prefs.appliedPackId.isNullOrBlank() &&
-                store.getPack(prefs.appliedPackId!!) != null
+                store.getPack(prefs.appliedPackId!!) != null,
+            theme = themeController.active(),
+            frequent = frequent
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppDrawerUiState())
+
+    private data class DrawerSnapshot(
+        val query: String,
+        val installed: List<App>,
+        val home: List<HomeApp>,
+        val icons: Map<String, Bitmap>
+    )
 
     private val homeObserver = androidx.lifecycle.Observer<List<HomeApp>> { list ->
         _home.value = list.orEmpty()
@@ -91,13 +112,21 @@ class AppDrawerViewModel @Inject constructor(
 
     fun refreshInstalled() {
         viewModelScope.launch(Dispatchers.IO) {
-            _installed.value = installedAppsQuery.load()
+            val apps = installedAppsQuery.load()
+            _installed.value = apps
+            prefs.appliedPackId?.let { packId ->
+                store.getPack(packId)?.let { generator.fillMissing(it, apps) }
+            }
             reloadIcons()
         }
     }
 
     fun onQueryChange(value: String) {
         _query.value = value
+    }
+
+    fun recordLaunch(app: App) {
+        launchStore.record(iconKey(app))
     }
 
     fun regenerate(app: App) {

@@ -37,6 +37,7 @@ class AppDrawerLogicTest {
     fun phoneGridIsFourColumnsWithFiftySixDpIcons() {
         assertThat(AppDrawerGrid.PHONE_COLUMNS).isEqualTo(4)
         assertThat(AppDrawerGrid.ICON_DP).isEqualTo(56)
+        assertThat(LaunchRanker.LIMIT).isEqualTo(AppDrawerGrid.PHONE_COLUMNS)
     }
 
     @Test

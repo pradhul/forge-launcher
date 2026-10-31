@@ -1,5 +1,7 @@
 package com.sduduzog.slimlauncher.ui.main
 
+import android.content.res.ColorStateList
+import android.graphics.drawable.GradientDrawable
 import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.ComponentName
@@ -36,6 +38,7 @@ import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.adapters.HomeAdapter
 import com.sduduzog.slimlauncher.databinding.HomeFragmentBinding
 import com.sduduzog.slimlauncher.icons.AppIconResolver
+import com.sduduzog.slimlauncher.icons.PackThemeController
 import com.sduduzog.slimlauncher.models.HomeApp
 import com.sduduzog.slimlauncher.models.MainViewModel
 import com.sduduzog.slimlauncher.ui.home.AppDrawerOverlay
@@ -67,6 +70,9 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     @Inject
     lateinit var iconResolver: AppIconResolver
 
+    @Inject
+    lateinit var themeController: PackThemeController
+
     private lateinit var receiver: BroadcastReceiver
 
     override fun onCreateView(
@@ -91,18 +97,20 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         setupGestures()
         setupDrawer()
         observeIconRevision()
+        applyLauncherTheme()
         return binding!!.root
     }
 
     private fun setupDrawer() {
         binding!!.homeFragmentDrawer.setContent {
             val state by drawerViewModel.ui.collectAsStateWithLifecycle()
-            ForgeTheme {
+            ForgeTheme(theme = state.theme) {
                 AppDrawerOverlay(
                     visible = drawerOpen,
                     state = state,
                     onQueryChange = drawerViewModel::onQueryChange,
                     onLaunch = { app ->
+                        drawerViewModel.recordLaunch(app)
                         launchInstalled(app)
                         closeDrawer()
                     },
@@ -168,6 +176,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.iconRevision.collect {
+                    applyLauncherTheme()
                     adapter.notifyDataSetChanged()
                     drawerViewModel.refreshInstalled()
                 }
@@ -191,6 +200,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     override fun onResume() {
         super.onResume()
         updateClock()
+        applyLauncherTheme()
         drawerViewModel.refreshInstalled()
         if (::adapter.isInitialized) {
             adapter.notifyDataSetChanged()
@@ -263,6 +273,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     }
 
     override fun onLaunch(app: HomeApp, view: View) {
+        drawerViewModel.recordLaunch(App.from(app))
         launchComponent(app.packageName, app.activityName, app.userSerial, view)
     }
 
@@ -331,6 +342,24 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                 }
             }
             .show()
+    }
+
+    private fun applyLauncherTheme() {
+        val theme = themeController.active()
+        val root = binding?.homeFragment ?: return
+        root.background = GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(theme.background, theme.backgroundEnd)
+        )
+        binding?.homeFragmentTime?.setTextColor(theme.onBackground)
+        binding?.homeFragmentDate?.setTextColor(theme.onBackground)
+        binding?.homeFragmentOptions?.setTextColor(theme.onBackground)
+        binding?.homeFragmentAllApps?.setTextColor(theme.onBackground)
+        binding?.homeFragmentEmpty?.setTextColor(theme.onBackground)
+        adapter.setLabelColor(theme.onBackground)
+        val accent = ColorStateList.valueOf(theme.accent)
+        binding?.homeFragmentCall?.imageTintList = accent
+        binding?.homeFragmentCamera?.imageTintList = accent
     }
 
     private fun openIconPacks() {

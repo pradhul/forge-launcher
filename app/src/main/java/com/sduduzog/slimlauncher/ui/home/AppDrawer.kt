@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.text.KeyboardOptions
@@ -123,7 +124,12 @@ fun AppDrawer(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("All apps", style = MaterialTheme.typography.headlineMedium, fontSize = 28.sp)
+            Text(
+                "All apps",
+                style = MaterialTheme.typography.headlineMedium,
+                fontSize = 28.sp,
+                color = MaterialTheme.colorScheme.onBackground
+            )
             Row {
                 TextButton(onClick = onIconPacks) { Text("Icon packs") }
                 TextButton(onClick = onClose) { Text("Close") }
@@ -148,6 +154,7 @@ fun AppDrawer(
         if (state.apps.isEmpty()) {
             Text(
                 if (state.query.isBlank()) "No launchable apps found." else "No apps match that search.",
+                color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.padding(top = 24.dp)
             )
         } else {
@@ -157,6 +164,35 @@ fun AppDrawer(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                if (state.frequent.isNotEmpty()) {
+                    item(
+                        key = "frequent-header",
+                        span = { GridItemSpan(maxLineSpan) }
+                    ) {
+                        Text(
+                            "Frequent",
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                    }
+                    items(
+                        state.frequent,
+                        key = { "freq:${AppDrawerLogic.itemKey(it.app)}" }
+                    ) { item ->
+                        DrawerGridCell(
+                            item = item,
+                            onClick = { onLaunch(item.app) },
+                            onLongClick = { selected = item }
+                        )
+                    }
+                    item(
+                        key = "frequent-spacer",
+                        span = { GridItemSpan(maxLineSpan) }
+                    ) {
+                        Spacer(Modifier.height(4.dp))
+                    }
+                }
                 items(state.apps, key = { AppDrawerLogic.itemKey(it.app) }) { item ->
                     DrawerGridCell(
                         item = item,
@@ -226,6 +262,7 @@ private fun DrawerGridCell(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.fillMaxWidth()
         )
         if (item.pinned) {

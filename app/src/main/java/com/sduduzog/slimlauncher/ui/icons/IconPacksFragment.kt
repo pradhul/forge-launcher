@@ -4,9 +4,11 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sduduzog.slimlauncher.utils.BaseFragment
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -29,7 +31,8 @@ class IconPacksFragment : BaseFragment() {
                 ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
             )
             view.setContent {
-                ForgeTheme {
+                val state by viewModel.ui.collectAsStateWithLifecycle()
+                ForgeTheme(theme = state.theme) {
                     IconPacksRoute(viewModel)
                 }
             }

@@ -7,6 +7,7 @@ import com.sduduzog.slimlauncher.icons.FileIconPackStore
 import com.sduduzog.slimlauncher.icons.GeminiIconClient
 import com.sduduzog.slimlauncher.icons.IconPackStore
 import com.sduduzog.slimlauncher.icons.IconPreferences
+import com.sduduzog.slimlauncher.ui.home.LaunchStore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -35,6 +36,14 @@ object IconModule {
             Context.MODE_PRIVATE
         )
         return IconPreferences(prefs)
+    }
+
+    @Provides
+    @Singleton
+    fun provideLaunchStore(@ApplicationContext context: Context): LaunchStore {
+        return LaunchStore(
+            context.getSharedPreferences(LaunchStore.PREFS_NAME, Context.MODE_PRIVATE)
+        )
     }
 
     @Provides

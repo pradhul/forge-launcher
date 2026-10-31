@@ -71,7 +71,7 @@ class IconRasterizerTest {
             context.getSharedPreferences("icon_rasterizer_test", Context.MODE_PRIVATE)
         )
         prefs.showIcons = false
-        val resolver = AppIconResolver(context, store, prefs)
+        val resolver = AppIconResolver(context, store, prefs, OnDeviceIconStylizer(context))
         val view = android.widget.ImageView(context)
         view.layout(0, 0, 48, 48)
         resolver.bind(view, context.packageName, context.applicationInfo.className ?: "", 0L)

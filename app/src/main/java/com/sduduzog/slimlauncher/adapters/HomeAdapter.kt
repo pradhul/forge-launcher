@@ -18,6 +18,7 @@ class HomeAdapter(
 ) : RecyclerView.Adapter<HomeAdapter.ViewHolder>() {
 
     private var apps: List<HomeApp> = listOf()
+    private var labelColor: Int? = null
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context)
@@ -28,6 +29,7 @@ class HomeAdapter(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = apps.elementAt(position)
         holder.mLabelView.text = item.appNickname ?: item.appName
+        labelColor?.let { holder.mLabelView.setTextColor(it) }
         iconResolver.bind(holder.mIconView, item.packageName, item.activityName, item.userSerial)
         holder.itemView.setOnClickListener {
             listener.onLaunch(item, it)
@@ -42,6 +44,11 @@ class HomeAdapter(
 
     fun setItems(list: List<HomeApp>) {
         this.apps = list
+        notifyDataSetChanged()
+    }
+
+    fun setLabelColor(color: Int) {
+        labelColor = color
         notifyDataSetChanged()
     }
 

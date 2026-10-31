@@ -77,6 +77,12 @@ class OnDeviceIconStylizer @Inject constructor(
         }
     }
 
+    fun styleWithoutTransfer(source: Drawable, preset: StylePreset): ByteArray {
+        val plate = compositeOnBackplate(source, ICON_SIZE, preset.backplateColor)
+        val finished = postProcessBitmap(plate, preset, 1f)
+        return ImageUtils.encodePng(finished)
+    }
+
     fun stylizeWithBottleneck(
         source: Drawable,
         bottleneck: FloatArray,

@@ -15,6 +15,9 @@ import com.sduduzog.slimlauncher.icons.IconPackStore
 import com.sduduzog.slimlauncher.icons.IconPreferences
 import com.sduduzog.slimlauncher.icons.InstalledAppsQuery
 import com.sduduzog.slimlauncher.icons.PackCreateSpec
+import com.sduduzog.slimlauncher.icons.PackTheme
+import com.sduduzog.slimlauncher.icons.PackThemeController
+import com.sduduzog.slimlauncher.icons.PackThemeExtractor
 import com.sduduzog.slimlauncher.icons.StylePreset
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -41,7 +44,9 @@ data class IconPacksUiState(
     val selectedPackId: String? = null,
     val installedApps: List<App> = emptyList(),
     val showCreate: Boolean = false,
-    val confirmDeleteId: String? = null
+    val confirmDeleteId: String? = null,
+    val matchBackground: Boolean = true,
+    val theme: PackTheme = PackTheme.STOCK
 ) {
     val selectedPack: IconPack? get() = packs.firstOrNull { it.id == selectedPackId }
     val canStartCreate: Boolean
@@ -60,7 +65,9 @@ class IconPacksViewModel @Inject constructor(
     private val prefs: IconPreferences,
     private val apiKeyStore: ApiKeyStore,
     private val generator: IconPackGenerator,
-    private val installedAppsQuery: InstalledAppsQuery
+    private val installedAppsQuery: InstalledAppsQuery,
+    private val themeExtractor: PackThemeExtractor,
+    private val themeController: PackThemeController
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(IconPacksUiState())
@@ -82,7 +89,9 @@ class IconPacksViewModel @Inject constructor(
                 packs = store.listPacks(),
                 appliedPackId = prefs.appliedPackId,
                 hasApiKey = apiKeyStore.hasKey(),
-                installedApps = installedAppsQuery.load()
+                installedApps = installedAppsQuery.load(),
+                matchBackground = prefs.matchBackgroundToPack,
+                theme = themeController.active()
             )
         }
     }
@@ -169,6 +178,7 @@ class IconPacksViewModel @Inject constructor(
             }
         )
         val pack = store.createPack(spec)
+        themeExtractor.ensureTheme(pack.id)
         prefs.applyPack(pack.id)
         generator.startPack(pack, state.installedApps)
         _ui.update {
@@ -183,12 +193,21 @@ class IconPacksViewModel @Inject constructor(
     }
 
     fun applyPack(packId: String) {
+        val pack = themeExtractor.ensureTheme(packId) ?: store.getPack(packId)
         prefs.applyPack(packId)
+        if (pack != null) {
+            generator.fillMissing(pack, _ui.value.installedApps)
+        }
         refresh()
     }
 
     fun useStockIcons() {
         prefs.revertToStock()
+        refresh()
+    }
+
+    fun setMatchBackground(enabled: Boolean) {
+        prefs.matchBackgroundToPack = enabled
         refresh()
     }
 

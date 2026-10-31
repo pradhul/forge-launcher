@@ -25,7 +25,11 @@ object AppDrawerLogic {
     }
 
     fun itemKey(app: App): String {
-        return "${app.packageName}:${app.activityName}:${app.userSerial}"
+        return itemKey(app.packageName, app.activityName, app.userSerial)
+    }
+
+    fun itemKey(packageName: String, activityName: String, userSerial: Long): String {
+        return "$packageName:$activityName:$userSerial"
     }
 
     fun distinctLaunchers(apps: List<App>): List<App> {

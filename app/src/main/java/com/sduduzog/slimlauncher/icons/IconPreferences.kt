@@ -35,6 +35,13 @@ class IconPreferences(private val prefs: SharedPreferences) {
             prefs.edit { putBoolean(KEY_HOME_DEFAULTS_SEEDED, value) }
         }
 
+    var matchBackgroundToPack: Boolean
+        get() = prefs.getBoolean(KEY_MATCH_BACKGROUND, true)
+        set(value) {
+            prefs.edit { putBoolean(KEY_MATCH_BACKGROUND, value) }
+            notifyIconsChanged()
+        }
+
     fun applyPack(packId: String?) {
         appliedPackId = packId
     }
@@ -51,5 +58,6 @@ class IconPreferences(private val prefs: SharedPreferences) {
         const val KEY_SHOW_ICONS = "key_show_icons"
         const val KEY_APPLIED_PACK_ID = "key_applied_pack_id"
         const val KEY_HOME_DEFAULTS_SEEDED = "key_home_defaults_seeded"
+        const val KEY_MATCH_BACKGROUND = "key_match_background_to_pack"
     }
 }

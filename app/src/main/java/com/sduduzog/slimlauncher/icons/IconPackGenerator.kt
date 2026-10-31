@@ -49,7 +49,8 @@ class IconPackGenerator @Inject constructor(
     val isRunning: Boolean get() = _progress.value.running
 
     fun startPack(pack: IconPack, apps: List<App>) {
-        if (apps.isEmpty()) {
+        val unique = apps.distinctBy { it.packageName }
+        if (unique.isEmpty()) {
             _progress.value = GenerationProgress(
                 packId = pack.id,
                 packName = pack.name,
@@ -60,7 +61,17 @@ class IconPackGenerator @Inject constructor(
         }
         job?.cancel()
         job = scope.launch {
-            runGeneration(pack, apps, applyWhenDone = true)
+            runGeneration(pack, unique, applyWhenDone = true)
+        }
+    }
+
+    fun fillMissing(pack: IconPack, apps: List<App>) {
+        if (isRunning) return
+        val missing = apps.distinctBy { it.packageName }
+            .filter { !store.iconExists(pack.id, it.packageName) }
+        if (missing.isEmpty()) return
+        job = scope.launch {
+            runGeneration(pack, missing, applyWhenDone = false)
         }
     }
 
@@ -97,7 +108,7 @@ class IconPackGenerator @Inject constructor(
                 }
                 try {
                     val bytes = if (onDevice && styleContext != null) {
-                        generateOnDevice(app, pack, styleContext)
+                        generateOnDeviceOrFallback(app, pack, styleContext)
                     } else {
                         val reference = iconResolver.stockIconPng(
                             app.packageName,
@@ -164,6 +175,19 @@ class IconPackGenerator @Inject constructor(
         }
         val bottleneck = stylizer.predictStyleBottleneck(styleBitmap)
         return OnDeviceStyleContext(preset, styleBitmap, bottleneck)
+    }
+
+    private fun generateOnDeviceOrFallback(
+        app: App,
+        pack: IconPack,
+        style: OnDeviceStyleContext
+    ): ByteArray {
+        return try {
+            generateOnDevice(app, pack, style)
+        } catch (_: Exception) {
+            val drawable = stockDrawable(app) ?: iconResolver.fallbackIcon()
+            stylizer.styleWithoutTransfer(drawable, style.preset)
+        }
     }
 
     private fun generateOnDevice(

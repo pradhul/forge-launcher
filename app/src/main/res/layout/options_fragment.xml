@@ -72,6 +72,15 @@
             android:textSize="@dimen/_20ssp" />
 
         <TextView
+            android:id="@+id/options_fragment_match_background"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:text="@string/options_fragment_match_background"
+            android:textAppearance="@style/TextAppearance.AppCompat"
+            android:textSize="@dimen/_20ssp" />
+
+        <TextView
             android:id="@+id/options_fragment_icon_packs"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

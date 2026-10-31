@@ -36,13 +36,13 @@ class IconApplyLogicTest {
     }
 
     @Test
-    fun stockWhenPackMissingApp() {
+    fun packFallbackWhenPackMissingApp() {
         val resolved = IconApplyLogic.resolve(
             showIcons = true,
             appliedPack = pack,
-            packageName = "com.example.other"
+            packageName = "com.android.stk"
         )
-        assertThat(resolved).isEqualTo(ResolvedIcon.Stock)
+        assertThat(resolved).isEqualTo(ResolvedIcon.PackFallback("pack-1"))
     }
 
     @Test

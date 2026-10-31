@@ -21,7 +21,8 @@ import javax.inject.Singleton
 class AppIconResolver @Inject constructor(
     @ApplicationContext private val context: Context,
     private val store: IconPackStore,
-    private val prefs: IconPreferences
+    private val prefs: IconPreferences,
+    private val stylizer: OnDeviceIconStylizer
 ) {
 
     fun shouldShowIcons(): Boolean = prefs.showIcons
@@ -38,8 +39,13 @@ class AppIconResolver @Inject constructor(
         return when (IconApplyLogic.resolve(true, applied, packageName)) {
             ResolvedIcon.Hidden -> fallbackIcon()
             is ResolvedIcon.Pack -> decodePackIcon(applied!!.id, packageName)
-                ?: loadStockIcon(packageName, activityName, userSerial)
-                ?: fallbackIcon()
+                ?: styledFallback(applied, packageName, activityName, userSerial)
+            is ResolvedIcon.PackFallback -> styledFallback(
+                applied!!,
+                packageName,
+                activityName,
+                userSerial
+            )
             ResolvedIcon.Stock -> loadStockIcon(packageName, activityName, userSerial)
                 ?: fallbackIcon()
         }
@@ -132,6 +138,29 @@ class AppIconResolver @Inject constructor(
     ): ByteArray? {
         val drawable = loadStockIcon(packageName, activityName, userSerial) ?: return null
         return ImageUtils.encodePng(IconRasterizer.toBitmap(drawable, size))
+    }
+
+    private fun styledFallback(
+        pack: IconPack,
+        packageName: String,
+        activityName: String,
+        userSerial: Long
+    ): Drawable {
+        val source = loadStockIcon(packageName, activityName, userSerial) ?: fallbackIcon()
+        val preset = when {
+            pack.stylePresetId == StylePreset.CUSTOM_ID -> StylePreset.CUSTOM
+            else -> StylePreset.byId(pack.stylePresetId) ?: StylePreset.ALL.first()
+        }
+        return try {
+            val bytes = stylizer.styleWithoutTransfer(source, preset)
+            store.saveIcon(pack.id, packageName, bytes)
+            decodePackIcon(pack.id, packageName) ?: BitmapDrawable(
+                context.resources,
+                IconRasterizer.toBitmap(source, ICON_PX)
+            )
+        } catch (_: Exception) {
+            BitmapDrawable(context.resources, IconRasterizer.toBitmap(source, ICON_PX))
+        }
     }
 
     private fun decodePackIcon(packId: String, packageName: String): Drawable? {

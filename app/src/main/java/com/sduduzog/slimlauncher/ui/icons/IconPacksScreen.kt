@@ -5,14 +5,15 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
-import android.util.TypedValue
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,17 +33,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -58,28 +62,30 @@ import com.sduduzog.slimlauncher.data.model.App
 import com.sduduzog.slimlauncher.icons.GenerationMode
 import com.sduduzog.slimlauncher.icons.GenerationProgress
 import com.sduduzog.slimlauncher.icons.IconPack
+import com.sduduzog.slimlauncher.icons.PackTheme
 import com.sduduzog.slimlauncher.icons.StylePreset
 
 @Composable
-fun ForgeTheme(content: @Composable () -> Unit) {
-    val context = LocalContext.current
-    val colors = remember {
-        val value = TypedValue()
-        context.theme.resolveAttribute(android.R.attr.colorBackground, value, true)
-        val background = Color(value.data)
-        context.theme.resolveAttribute(android.R.attr.colorForeground, value, true)
-        val foreground = Color(value.data)
-        val luminance =
-            (0.299f * background.red) + (0.587f * background.green) + (0.114f * background.blue)
+fun ForgeTheme(theme: PackTheme = PackTheme.STOCK, content: @Composable () -> Unit) {
+    val background = Color(theme.background)
+    val backgroundEnd = Color(theme.backgroundEnd)
+    val foreground = Color(theme.onBackground)
+    val accent = Color(theme.accent)
+    val onAccent = Color(theme.onAccent)
+    val luminance =
+        (0.299f * background.red) + (0.587f * background.green) + (0.114f * background.blue)
+    val colors = remember(theme) {
         val scheme = if (luminance < 0.5f) {
             darkColorScheme(
                 background = background,
                 surface = background,
                 onBackground = foreground,
                 onSurface = foreground,
-                primary = foreground,
-                onPrimary = background,
-                outline = foreground.copy(alpha = 0.5f)
+                primary = accent,
+                onPrimary = onAccent,
+                outline = foreground.copy(alpha = 0.5f),
+                secondary = accent,
+                onSecondary = onAccent
             )
         } else {
             lightColorScheme(
@@ -87,16 +93,24 @@ fun ForgeTheme(content: @Composable () -> Unit) {
                 surface = background,
                 onBackground = foreground,
                 onSurface = foreground,
-                primary = foreground,
-                onPrimary = background,
-                outline = foreground.copy(alpha = 0.5f)
+                primary = accent,
+                onPrimary = onAccent,
+                outline = foreground.copy(alpha = 0.5f),
+                secondary = accent,
+                onSecondary = onAccent
             )
         }
         scheme
     }
     MaterialTheme(colorScheme = colors, typography = MaterialTheme.typography) {
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            content()
+        CompositionLocalProvider(LocalContentColor provides foreground) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Brush.verticalGradient(listOf(background, backgroundEnd)))
+            ) {
+                content()
+            }
         }
     }
 }
@@ -130,6 +144,7 @@ fun IconPacksRoute(viewModel: IconPacksViewModel) {
         onCreatePack = viewModel::createPack,
         onApply = viewModel::applyPack,
         onUseStock = viewModel::useStockIcons,
+        onMatchBackground = viewModel::setMatchBackground,
         onOpen = viewModel::openPack,
         onClosePack = viewModel::closePack,
         onRequestDelete = viewModel::requestDelete,
@@ -158,6 +173,7 @@ fun IconPacksScreen(
     onCreatePack: () -> Unit,
     onApply: (String) -> Unit,
     onUseStock: () -> Unit,
+    onMatchBackground: (Boolean) -> Unit,
     onOpen: (String) -> Unit,
     onClosePack: () -> Unit,
     onRequestDelete: (String) -> Unit,
@@ -217,6 +233,7 @@ fun IconPacksScreen(
                 onShowCreate = { onShowCreate(true) },
                 onApply = onApply,
                 onUseStock = onUseStock,
+                onMatchBackground = onMatchBackground,
                 onOpen = onOpen,
                 onDelete = onRequestDelete
             )
@@ -272,6 +289,7 @@ private fun PackList(
     onShowCreate: () -> Unit,
     onApply: (String) -> Unit,
     onUseStock: () -> Unit,
+    onMatchBackground: (Boolean) -> Unit,
     onOpen: (String) -> Unit,
     onDelete: (String) -> Unit
 ) {
@@ -314,6 +332,17 @@ private fun PackList(
         }
         TextButton(onClick = onUseStock) {
             Text(if (state.appliedPackId == null) "Using stock icons" else "Use stock icons")
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(stringResource(R.string.options_fragment_match_background), fontSize = 16.sp)
+            Switch(
+                checked = state.matchBackground,
+                onCheckedChange = onMatchBackground
+            )
         }
         state.packs.forEach { pack ->
             PackRow(

@@ -13,4 +13,5 @@ interface IconPackStore {
     fun getIconFile(packId: String, packageName: String): File?
     fun iconExists(packId: String, packageName: String): Boolean
     fun getCustomStyleFile(packId: String): File?
+    fun updatePack(pack: IconPack)
 }

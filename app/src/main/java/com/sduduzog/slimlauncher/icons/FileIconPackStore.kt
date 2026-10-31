@@ -99,6 +99,11 @@ class FileIconPackStore(private val rootDir: File) : IconPackStore {
         return File(packDir(packId), relative).takeIf { it.isFile }
     }
 
+    @Synchronized
+    override fun updatePack(pack: IconPack) {
+        writeManifest(pack)
+    }
+
     private fun packDir(id: String): File = File(rootDir, id)
 
     private fun writeManifest(pack: IconPack) {
@@ -133,7 +138,8 @@ class FileIconPackStore(private val rootDir: File) : IconPackStore {
                 generatorMode = GenerationMode.fromStorage(json.optString("generatorMode")),
                 stylePresetId = json.optString("stylePresetId").takeIf { it.isNotBlank() },
                 styleStrength = json.optDouble("styleStrength", 0.7).toFloat(),
-                customStylePath = json.optString("customStylePath").takeIf { it.isNotBlank() }
+                customStylePath = json.optString("customStylePath").takeIf { it.isNotBlank() },
+                theme = PackTheme.fromJson(json.optJSONObject("theme"))
             )
         } catch (_: Exception) {
             null
@@ -153,6 +159,7 @@ class FileIconPackStore(private val rootDir: File) : IconPackStore {
             .put("stylePresetId", pack.stylePresetId ?: "")
             .put("styleStrength", pack.styleStrength.toDouble())
             .put("customStylePath", pack.customStylePath ?: "")
+            .put("theme", pack.theme?.toJson() ?: JSONObject.NULL)
             .toString()
     }
 

@@ -12,6 +12,7 @@ import com.sduduzog.slimlauncher.icons.AppIconResolver
 import com.sduduzog.slimlauncher.icons.FileIconPackStore
 import com.sduduzog.slimlauncher.icons.IconPreferences
 import com.sduduzog.slimlauncher.icons.IconRasterizer
+import com.sduduzog.slimlauncher.icons.OnDeviceIconStylizer
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -64,7 +65,12 @@ class AppDrawerIconsTest {
             context.getSharedPreferences("drawer_icons_test", Context.MODE_PRIVATE)
         )
         prefs.showIcons = false
-        val resolver = AppIconResolver(context, FileIconPackStore(context.filesDir), prefs)
+        val resolver = AppIconResolver(
+            context,
+            FileIconPackStore(context.filesDir),
+            prefs,
+            OnDeviceIconStylizer(context)
+        )
         val bitmap = resolver.resolveBitmap(
             context.packageName,
             context.applicationInfo.className ?: "Launcher",

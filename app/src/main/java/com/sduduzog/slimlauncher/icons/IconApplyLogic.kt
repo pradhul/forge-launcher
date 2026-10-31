@@ -19,6 +19,7 @@ object IconApplyLogic {
             if (!relativePath.isNullOrBlank()) {
                 return ResolvedIcon.Pack(appliedPack.id, relativePath)
             }
+            return ResolvedIcon.PackFallback(appliedPack.id)
         }
         return ResolvedIcon.Stock
     }
@@ -40,4 +41,5 @@ sealed class ResolvedIcon {
     data object Hidden : ResolvedIcon()
     data object Stock : ResolvedIcon()
     data class Pack(val packId: String, val relativePath: String) : ResolvedIcon()
+    data class PackFallback(val packId: String) : ResolvedIcon()
 }

@@ -11,10 +11,12 @@ import androidx.core.content.edit
 import androidx.navigation.Navigation
 import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.databinding.OptionsFragmentBinding
+import com.sduduzog.slimlauncher.icons.IconPreferences
 import com.sduduzog.slimlauncher.ui.dialogs.ChangeThemeDialog
 import com.sduduzog.slimlauncher.ui.dialogs.ChooseTimeFormatDialog
 import com.sduduzog.slimlauncher.utils.BaseFragment
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class OptionsFragment : BaseFragment() {
@@ -22,6 +24,9 @@ class OptionsFragment : BaseFragment() {
     private var _binding: OptionsFragmentBinding? = null
     private val binding get() = _binding
     override fun getFragmentView(): ViewGroup = binding!!.root
+
+    @Inject
+    lateinit var iconPreferences: IconPreferences
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -69,6 +74,9 @@ class OptionsFragment : BaseFragment() {
             settings.edit {
                 putBoolean(getString(R.string.prefs_settings_key_show_icons), !showing)
             }
+        }
+        binding!!.optionsFragmentMatchBackground.setOnClickListener {
+            iconPreferences.matchBackgroundToPack = !iconPreferences.matchBackgroundToPack
         }
         binding!!.optionsFragmentIconPacks.setOnClickListener(
             Navigation.createNavigateOnClickListener(

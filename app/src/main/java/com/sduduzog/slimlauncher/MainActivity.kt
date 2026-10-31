@@ -19,7 +19,9 @@ import com.sduduzog.slimlauncher.icons.IconPackStore
 import com.sduduzog.slimlauncher.icons.IconPreferences
 import com.sduduzog.slimlauncher.icons.InstalledAppsQuery
 import com.sduduzog.slimlauncher.icons.PackCreateSpec
+import com.sduduzog.slimlauncher.icons.PackThemeExtractor
 import com.sduduzog.slimlauncher.icons.StylePreset
+import java.io.File
 import com.sduduzog.slimlauncher.utils.BaseFragment
 import com.sduduzog.slimlauncher.utils.HomeWatcher
 import com.sduduzog.slimlauncher.utils.IPublisher
@@ -43,6 +45,7 @@ class MainActivity : AppCompatActivity(),
     @Inject lateinit var iconPackGenerator: IconPackGenerator
     @Inject lateinit var iconPreferences: IconPreferences
     @Inject lateinit var installedAppsQuery: InstalledAppsQuery
+    @Inject lateinit var packThemeExtractor: PackThemeExtractor
     private val backPressedCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
             dispatchBack()
@@ -111,6 +114,23 @@ class MainActivity : AppCompatActivity(),
             iconPreferences.revertToStock()
             return false
         }
+        val customPath = intent?.getStringExtra(EXTRA_CUSTOM_STYLE)
+        if (!customPath.isNullOrBlank()) {
+            val bytes = runCatching { File(customPath).readBytes() }.getOrNull() ?: return false
+            val spec = PackCreateSpec(
+                name = "My photo",
+                stylePrompt = "My photo",
+                generatorMode = GenerationMode.ON_DEVICE,
+                stylePresetId = StylePreset.CUSTOM_ID,
+                styleStrength = StylePreset.CUSTOM.defaultStrength,
+                customStyleBytes = bytes
+            )
+            val pack = iconPackStore.createPack(spec)
+            packThemeExtractor.ensureTheme(pack.id)
+            iconPreferences.applyPack(pack.id)
+            iconPackGenerator.startPack(pack, installedAppsQuery.load())
+            return true
+        }
         val presetId = intent?.getStringExtra(EXTRA_GENERATE_PRESET) ?: return false
         val preset = StylePreset.byId(presetId) ?: return false
         val spec = PackCreateSpec(
@@ -122,6 +142,7 @@ class MainActivity : AppCompatActivity(),
             customStyleBytes = null
         )
         val pack = iconPackStore.createPack(spec)
+        packThemeExtractor.ensureTheme(pack.id)
         iconPreferences.applyPack(pack.id)
         iconPackGenerator.startPack(pack, installedAppsQuery.load())
         return true
@@ -199,6 +220,7 @@ class MainActivity : AppCompatActivity(),
     companion object {
         const val EXTRA_GENERATE_PRESET = "forge_generate_preset"
         const val EXTRA_USE_STOCK = "forge_use_stock"
+        const val EXTRA_CUSTOM_STYLE = "forge_custom_style"
 
         fun resolveTheme(i: Int): Int {
             return when (i) {
