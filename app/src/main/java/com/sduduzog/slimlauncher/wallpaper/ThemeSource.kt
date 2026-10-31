@@ -75,7 +75,7 @@ object WallpaperThemeLogic {
         }
     }
 
-    fun drawerGradient(seed: Int, fadePercent: Int = LauncherFadeLogic.DEFAULT_DRAWER_FADE): IntArray {
+    fun drawerGradient(seed: Int, fadePercent: Int = 100): IntArray {
         val tint = scrimTint(seed)
         return intArrayOf(
             scrim(tint, LauncherFadeLogic.scaleAlpha(DRAWER_TOP_ALPHA, fadePercent)),

@@ -64,23 +64,6 @@
             android:textSize="@dimen/_20ssp" />
 
         <TextView
-            android:id="@+id/options_fragment_drawer_fade_label"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:text="@string/options_fragment_drawer_fade"
-            android:textAppearance="@style/TextAppearance.AppCompat"
-            android:textSize="@dimen/_20ssp" />
-
-        <SeekBar
-            android:id="@+id/options_fragment_drawer_fade"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:max="100"
-            android:progress="100" />
-
-        <TextView
             android:id="@+id/options_fragment_home_fade_label"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

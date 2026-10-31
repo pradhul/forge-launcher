@@ -3,7 +3,6 @@ package com.sduduzog.slimlauncher.ui.options
 import android.content.Context.MODE_PRIVATE
 import android.content.Intent
 import android.content.res.ColorStateList
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.LayoutInflater
@@ -20,7 +19,6 @@ import com.sduduzog.slimlauncher.icons.PackThemeController
 import com.sduduzog.slimlauncher.ui.dialogs.ChangeThemeDialog
 import com.sduduzog.slimlauncher.ui.dialogs.ChooseTimeFormatDialog
 import com.sduduzog.slimlauncher.utils.BaseFragment
-import com.sduduzog.slimlauncher.wallpaper.LauncherFadeLogic
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -112,15 +110,10 @@ class OptionsFragment : BaseFragment() {
 
     private fun bindFadeControls() {
         val views = binding ?: return
-        views.optionsFragmentDrawerFade.progress = iconPreferences.drawerFadePercent
         views.optionsFragmentHomeFade.progress = iconPreferences.homeFadePercent
         views.optionsFragmentDrawerBlur.progress = iconPreferences.drawerBlurPercent
-        val blurSupported = LauncherFadeLogic.blurSupported(Build.VERSION.SDK_INT)
-        views.optionsFragmentDrawerBlur.isEnabled = blurSupported
+        views.optionsFragmentDrawerBlur.isEnabled = true
         updateFadeLabels()
-        views.optionsFragmentDrawerFade.setOnSeekBarChangeListener(
-            percentListener { iconPreferences.drawerFadePercent = it }
-        )
         views.optionsFragmentHomeFade.setOnSeekBarChangeListener(
             percentListener { iconPreferences.homeFadePercent = it }
         )
@@ -131,21 +124,14 @@ class OptionsFragment : BaseFragment() {
 
     private fun updateFadeLabels() {
         val views = binding ?: return
-        views.optionsFragmentDrawerFadeLabel.text = getString(
-            R.string.options_fragment_drawer_fade,
-            iconPreferences.drawerFadePercent
-        )
         views.optionsFragmentHomeFadeLabel.text = getString(
             R.string.options_fragment_home_fade,
             iconPreferences.homeFadePercent
         )
-        views.optionsFragmentDrawerBlurLabel.text = if (
-            LauncherFadeLogic.blurSupported(Build.VERSION.SDK_INT)
-        ) {
-            getString(R.string.options_fragment_drawer_blur, iconPreferences.drawerBlurPercent)
-        } else {
-            getString(R.string.options_fragment_drawer_blur_unsupported)
-        }
+        views.optionsFragmentDrawerBlurLabel.text = getString(
+            R.string.options_fragment_drawer_blur,
+            iconPreferences.drawerBlurPercent
+        )
     }
 
     private fun percentListener(onChange: (Int) -> Unit): SeekBar.OnSeekBarChangeListener {
@@ -169,8 +155,6 @@ class OptionsFragment : BaseFragment() {
         views.optionsFragment.setBackgroundColor(theme.background)
         tintText(views.optionsFragment, theme.onBackground)
         val accent = ColorStateList.valueOf(theme.accent)
-        views.optionsFragmentDrawerFade.progressTintList = accent
-        views.optionsFragmentDrawerFade.thumbTintList = accent
         views.optionsFragmentHomeFade.progressTintList = accent
         views.optionsFragmentHomeFade.thumbTintList = accent
         views.optionsFragmentDrawerBlur.progressTintList = accent

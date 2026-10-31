@@ -12,13 +12,25 @@
         tools:layout="@layout/home_fragment">
         <action
             android:id="@+id/action_homeFragment_to_optionsFragment"
-            app:destination="@id/optionsFragment" />
+            app:destination="@id/optionsFragment"
+            app:enterAnim="@anim/forge_slide_up"
+            app:exitAnim="@anim/forge_fade_out"
+            app:popEnterAnim="@anim/forge_fade_in"
+            app:popExitAnim="@anim/forge_slide_down" />
         <action
             android:id="@+id/action_homeFragment_to_iconPacksFragment"
-            app:destination="@id/iconPacksFragment" />
+            app:destination="@id/iconPacksFragment"
+            app:enterAnim="@anim/forge_slide_up"
+            app:exitAnim="@anim/forge_fade_out"
+            app:popEnterAnim="@anim/forge_fade_in"
+            app:popExitAnim="@anim/forge_slide_down" />
         <action
             android:id="@+id/action_homeFragment_to_wallpaperThemeFragment"
-            app:destination="@id/wallpaperThemeFragment" />
+            app:destination="@id/wallpaperThemeFragment"
+            app:enterAnim="@anim/forge_slide_up"
+            app:exitAnim="@anim/forge_fade_out"
+            app:popEnterAnim="@anim/forge_fade_in"
+            app:popExitAnim="@anim/forge_slide_down" />
     </fragment>
     <fragment
         android:id="@+id/optionsFragment"

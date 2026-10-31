@@ -10,8 +10,10 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.LauncherApps
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.UserManager
+import android.view.WindowManager
 import android.provider.AlarmClock
 import android.provider.CalendarContract
 import android.provider.MediaStore
@@ -47,6 +49,8 @@ import com.sduduzog.slimlauncher.models.MainViewModel
 import com.sduduzog.slimlauncher.ui.home.AppDrawerOverlay
 import com.sduduzog.slimlauncher.ui.home.AppDrawerViewModel
 import com.sduduzog.slimlauncher.ui.icons.ForgeTheme
+import com.sduduzog.slimlauncher.wallpaper.DrawerBlurLogic
+import com.sduduzog.slimlauncher.wallpaper.DrawerMotionLogic
 import com.sduduzog.slimlauncher.wallpaper.WallpaperThemeLogic
 import com.sduduzog.slimlauncher.utils.BaseFragment
 import com.sduduzog.slimlauncher.utils.OnLaunchAppListener
@@ -84,6 +88,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     lateinit var wallpaperPackCoordinator: com.sduduzog.slimlauncher.wallpaper.WallpaperPackCoordinator
 
     private lateinit var receiver: BroadcastReceiver
+    private val blurEnabledListener = java.util.function.Consumer<Boolean> { syncWindowBlur() }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -112,12 +117,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     private fun setupDrawer() {
         binding!!.homeFragmentDrawer.setContent {
             val state by drawerViewModel.ui.collectAsStateWithLifecycle()
-            ForgeTheme(
-                theme = state.theme,
-                drawerScrim = true,
-                drawerFadePercent = state.drawerFadePercent,
-                drawerBlurPercent = state.drawerBlurPercent
-            ) {
+            ForgeTheme(theme = state.theme, drawerScrim = true) {
                 AppDrawerOverlay(
                     visible = drawerOpen,
                     state = state,
@@ -131,18 +131,6 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                     onUnpin = { viewModel.unpin(it.packageName, it.userSerial) },
                     onAppInfo = ::openAppInfo,
                     onRegenerate = drawerViewModel::regenerate,
-                    onIconPacks = {
-                        closeDrawer()
-                        openIconPacks()
-                    },
-                    onWallpaper = {
-                        closeDrawer()
-                        openWallpaper()
-                    },
-                    onSettings = {
-                        closeDrawer()
-                        openSettings()
-                    },
                     onClose = { closeDrawer() }
                 )
             }
@@ -160,9 +148,13 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                 velocityY: Float
             ): Boolean {
                 if (e1 == null || drawerOpen) return false
-                val dy = e1.y - e2.y
-                if (dy > 80 && abs(velocityY) > abs(velocityX)) {
+                val up = e1.y - e2.y
+                if (DrawerMotionLogic.shouldOpenFromHomeSwipe(up, velocityX, velocityY)) {
                     openDrawer()
+                    return true
+                }
+                if (up < -DrawerMotionLogic.OPEN_DISTANCE && abs(velocityY) > abs(velocityX)) {
+                    expandNotificationShade()
                     return true
                 }
                 return false
@@ -205,13 +197,23 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         }
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                iconPreferences.chrome.collect { applyLauncherTheme() }
+                iconPreferences.chrome.collect {
+                    applyLauncherTheme()
+                    syncWindowBlur()
+                }
             }
         }
     }
 
     override fun onStart() {
         super.onStart()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val wm = requireContext().getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            wm.addCrossWindowBlurEnabledListener(
+                ContextCompat.getMainExecutor(requireContext()),
+                blurEnabledListener
+            )
+        }
         receiver = ClockReceiver()
         ContextCompat.registerReceiver(
             requireContext(),
@@ -228,6 +230,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         updateClock()
         applyLauncherTheme()
         wallpaperPackCoordinator.checkCurrentWallpaper()
+        drawerViewModel.refreshBackdrop()
         drawerViewModel.refreshInstalled()
         if (::adapter.isInitialized) {
             adapter.notifyDataSetChanged()
@@ -236,6 +239,10 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
 
     override fun onStop() {
         super.onStop()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val wm = context?.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+            wm?.removeCrossWindowBlurEnabledListener(blurEnabledListener)
+        }
         activity?.unregisterReceiver(receiver)
     }
 
@@ -416,21 +423,62 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     }
 
     private fun openDrawer() {
-        drawerOpen = true
+        drawerViewModel.refreshBackdrop()
         binding?.homeFragmentDrawer?.isVisible = true
+        binding?.homeFragmentOverflow?.bringToFront()
+        binding?.homeFragmentDrawer?.post {
+            drawerOpen = true
+            syncWindowBlur()
+        }
         drawerViewModel.refreshInstalled()
     }
 
     private fun closeDrawer() {
+        if (!drawerOpen && binding?.homeFragmentDrawer?.isVisible != true) return
         drawerOpen = false
-        binding?.homeFragmentDrawer?.isVisible = false
+        syncWindowBlur()
+        swallowOverflowClicks()
         drawerViewModel.onQueryChange("")
         val imm = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
         imm?.hideSoftInputFromWindow(binding?.root?.windowToken, 0)
+        binding?.homeFragmentDrawer?.postDelayed({
+            if (!drawerOpen) {
+                binding?.homeFragmentDrawer?.isVisible = false
+            }
+        }, DrawerMotionLogic.ANIM_MS.toLong())
+    }
+
+    private fun swallowOverflowClicks() {
+        val button = binding?.homeFragmentOverflow ?: return
+        button.isClickable = false
+        button.postDelayed({ button.isClickable = true }, DrawerMotionLogic.ANIM_MS + 80L)
+    }
+
+    private fun syncWindowBlur() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        val window = activity?.window ?: return
+        val wm = context?.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
+        val enabled = wm.isCrossWindowBlurEnabled
+        val radius = DrawerBlurLogic.windowBlurRadiusPx(
+            percent = iconPreferences.drawerBlurPercent,
+            density = resources.displayMetrics.density,
+            crossWindowEnabled = enabled,
+            sdkInt = Build.VERSION.SDK_INT
+        )
+        window.setBackgroundBlurRadius(if (drawerOpen) radius else 0)
+    }
+
+    private fun expandNotificationShade() {
+        try {
+            val service = requireContext().getSystemService("statusbar") ?: return
+            val method = service.javaClass.getMethod("expandNotificationsPanel")
+            method.invoke(service)
+        } catch (_: Exception) {
+        }
     }
 
     override fun onBack(): Boolean {
-        if (drawerOpen) {
+        if (DrawerMotionLogic.backClosesDrawerOnly(drawerOpen)) {
             closeDrawer()
             return true
         }

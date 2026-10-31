@@ -13,6 +13,8 @@ import com.sduduzog.slimlauncher.icons.PackTheme
 import com.sduduzog.slimlauncher.icons.PackThemeController
 import com.sduduzog.slimlauncher.models.HomeApp
 import com.sduduzog.slimlauncher.models.Repository
+import com.sduduzog.slimlauncher.wallpaper.LauncherFadeLogic
+import com.sduduzog.slimlauncher.wallpaper.WallpaperSnapshotter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,8 +39,8 @@ data class AppDrawerUiState(
     val theme: PackTheme = PackTheme.STOCK,
     val frequent: List<DrawerAppItem> = emptyList(),
     val openKeyboardOnOpen: Boolean = false,
-    val drawerFadePercent: Int = com.sduduzog.slimlauncher.wallpaper.LauncherFadeLogic.DEFAULT_DRAWER_FADE,
-    val drawerBlurPercent: Int = com.sduduzog.slimlauncher.wallpaper.LauncherFadeLogic.DEFAULT_DRAWER_BLUR
+    val drawerBlurPercent: Int = LauncherFadeLogic.DEFAULT_DRAWER_BLUR,
+    val backdrop: Bitmap? = null
 )
 
 @HiltViewModel
@@ -50,13 +52,15 @@ class AppDrawerViewModel @Inject constructor(
     private val store: IconPackStore,
     private val generator: IconPackGenerator,
     private val themeController: PackThemeController,
-    private val launchStore: LaunchStore
+    private val launchStore: LaunchStore,
+    private val snapshotter: WallpaperSnapshotter
 ) : ViewModel() {
 
     private val _query = MutableStateFlow("")
     private val _installed = MutableStateFlow<List<App>>(emptyList())
     private val _home = MutableStateFlow<List<HomeApp>>(emptyList())
     private val _icons = MutableStateFlow<Map<String, Bitmap>>(emptyMap())
+    private val _backdrop = MutableStateFlow<Bitmap?>(null)
 
     val ui: StateFlow<AppDrawerUiState> = combine(
         combine(_query, _installed, _home, _icons) { query, installed, home, icons ->
@@ -64,8 +68,9 @@ class AppDrawerViewModel @Inject constructor(
         },
         prefs.revision,
         launchStore.revision,
-        prefs.chrome
-    ) { snapshot, _, _, chrome ->
+        prefs.chrome,
+        _backdrop
+    ) { snapshot, _, _, chrome, backdrop ->
         val pins = snapshot.home.map { it.packageName to it.userSerial }
         fun itemOf(app: App) = DrawerAppItem(
             app = app,
@@ -88,8 +93,8 @@ class AppDrawerViewModel @Inject constructor(
             theme = themeController.active(),
             frequent = frequent,
             openKeyboardOnOpen = prefs.openKeyboardOnDrawer,
-            drawerFadePercent = chrome.drawerFadePercent,
-            drawerBlurPercent = chrome.drawerBlurPercent
+            drawerBlurPercent = chrome.drawerBlurPercent,
+            backdrop = backdrop
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppDrawerUiState())
 
@@ -109,12 +114,26 @@ class AppDrawerViewModel @Inject constructor(
         viewModelScope.launch {
             prefs.revision.collect { reloadIcons() }
         }
+        viewModelScope.launch {
+            prefs.chrome.collect { refreshBackdrop(it.drawerBlurPercent) }
+        }
         refreshInstalled()
     }
 
     override fun onCleared() {
         repository.apps.removeObserver(homeObserver)
         super.onCleared()
+    }
+
+    fun refreshBackdrop() {
+        snapshotter.invalidate()
+        refreshBackdrop(prefs.drawerBlurPercent)
+    }
+
+    private fun refreshBackdrop(percent: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _backdrop.value = snapshotter.blurred(percent)
+        }
     }
 
     fun refreshInstalled() {

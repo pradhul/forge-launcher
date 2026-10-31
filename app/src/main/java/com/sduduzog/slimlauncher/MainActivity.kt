@@ -151,7 +151,7 @@ class MainActivity : AppCompatActivity(),
 
     override fun onResume() {
         super.onResume()
-        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+        overridePendingTransition(R.anim.forge_fade_in, R.anim.forge_fade_out)
         toggleStatusBar()
     }
 

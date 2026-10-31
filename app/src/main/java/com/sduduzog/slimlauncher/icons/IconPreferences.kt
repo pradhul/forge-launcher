@@ -153,13 +153,6 @@ class IconPreferences(private val prefs: SharedPreferences) {
             prefs.edit { putString(KEY_WALLPAPER_STYLE_HASH, value) }
         }
 
-    var drawerFadePercent: Int
-        get() = readPercent(KEY_DRAWER_FADE, LauncherFadeLogic.DEFAULT_DRAWER_FADE)
-        set(value) {
-            prefs.edit { putInt(KEY_DRAWER_FADE, LauncherFadeLogic.clampPercent(value)) }
-            publishChrome()
-        }
-
     var homeFadePercent: Int
         get() = readPercent(KEY_HOME_FADE, LauncherFadeLogic.DEFAULT_HOME_FADE)
         set(value) {
@@ -192,7 +185,6 @@ class IconPreferences(private val prefs: SharedPreferences) {
 
     private fun readChrome(): ChromeFadePrefs {
         return ChromeFadePrefs(
-            drawerFadePercent = drawerFadePercent,
             homeFadePercent = homeFadePercent,
             drawerBlurPercent = drawerBlurPercent
         )
@@ -221,7 +213,6 @@ class IconPreferences(private val prefs: SharedPreferences) {
         const val KEY_WALLPAPER_STYLED_ICONS = "key_wallpaper_styled_icons"
         const val KEY_WALLPAPER_STYLE_STRENGTH = "key_wallpaper_style_strength"
         const val KEY_WALLPAPER_STYLE_HASH = "key_wallpaper_style_hash"
-        const val KEY_DRAWER_FADE = "key_drawer_fade_percent"
         const val KEY_HOME_FADE = "key_home_fade_percent"
         const val KEY_DRAWER_BLUR = "key_drawer_blur_percent"
     }

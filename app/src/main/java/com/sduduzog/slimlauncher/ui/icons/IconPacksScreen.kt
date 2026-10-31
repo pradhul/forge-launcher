@@ -1,6 +1,5 @@
 package com.sduduzog.slimlauncher.ui.icons
 
-import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,7 +27,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -36,43 +34,26 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sduduzog.slimlauncher.icons.GenerationProgress
 import com.sduduzog.slimlauncher.icons.PackTheme
-import com.sduduzog.slimlauncher.wallpaper.LauncherFadeLogic
-import com.sduduzog.slimlauncher.wallpaper.WallpaperThemeLogic
 
 @Composable
 fun ForgeTheme(
     theme: PackTheme = PackTheme.STOCK,
     translucent: Boolean = false,
     drawerScrim: Boolean = false,
-    drawerFadePercent: Int = LauncherFadeLogic.DEFAULT_DRAWER_FADE,
-    drawerBlurPercent: Int = LauncherFadeLogic.DEFAULT_DRAWER_BLUR,
     content: @Composable () -> Unit
 ) {
-    val gradient = if (drawerScrim) {
-        WallpaperThemeLogic.drawerGradient(theme.seed, drawerFadePercent)
-    } else {
-        null
-    }
     val bgAlpha = when {
-        drawerScrim -> 1f
+        drawerScrim -> 0f
         translucent -> 0.60f
         else -> 1f
     }
     val endAlpha = when {
-        drawerScrim -> 1f
+        drawerScrim -> 0f
         translucent -> 0.40f
         else -> 1f
     }
-    val background = if (gradient != null) {
-        Color(gradient[0])
-    } else {
-        Color(theme.background).copy(alpha = bgAlpha)
-    }
-    val backgroundEnd = if (gradient != null) {
-        Color(gradient[1])
-    } else {
-        Color(theme.backgroundEnd).copy(alpha = endAlpha)
-    }
+    val background = Color(theme.background).copy(alpha = bgAlpha)
+    val backgroundEnd = Color(theme.backgroundEnd).copy(alpha = endAlpha)
     val foreground = Color(theme.onBackground)
     val accent = Color(theme.accent)
     val onAccent = Color(theme.onAccent)
@@ -80,7 +61,7 @@ fun ForgeTheme(
         (0.299f * Color(theme.background).red) +
             (0.587f * Color(theme.background).green) +
             (0.114f * Color(theme.background).blue)
-    val colors = remember(theme, translucent, drawerScrim, drawerFadePercent) {
+    val colors = remember(theme, translucent, drawerScrim) {
         val scheme = if (luminance < 0.5f) {
             darkColorScheme(
                 background = background,
@@ -111,22 +92,13 @@ fun ForgeTheme(
     MaterialTheme(colorScheme = colors, typography = MaterialTheme.typography) {
         CompositionLocalProvider(LocalContentColor provides foreground) {
             Box(modifier = Modifier.fillMaxSize()) {
-                val blurDp = LauncherFadeLogic.blurRadiusDp(drawerBlurPercent)
-                val scrimBlur = if (
-                    drawerScrim &&
-                    LauncherFadeLogic.blurSupported(Build.VERSION.SDK_INT) &&
-                    blurDp > 0f
-                ) {
-                    Modifier.blur(blurDp.dp)
-                } else {
-                    Modifier
+                if (!drawerScrim) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Brush.verticalGradient(listOf(background, backgroundEnd)))
+                    )
                 }
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .then(scrimBlur)
-                        .background(Brush.verticalGradient(listOf(background, backgroundEnd)))
-                )
                 content()
             }
         }

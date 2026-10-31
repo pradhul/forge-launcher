@@ -3,11 +3,9 @@ package com.sduduzog.slimlauncher.wallpaper
 import kotlin.math.roundToInt
 
 object LauncherFadeLogic {
-    const val DEFAULT_DRAWER_FADE = 100
     const val DEFAULT_HOME_FADE = 100
-    const val DEFAULT_DRAWER_BLUR = 50
-    const val MAX_BLUR_DP = 24f
-    const val BLUR_MIN_SDK = 31
+    const val DEFAULT_DRAWER_BLUR = DrawerBlurLogic.DEFAULT_BLUR_PERCENT
+    const val MAX_BLUR_DP = DrawerBlurLogic.MAX_BLUR_DP
 
     fun clampPercent(value: Int): Int = value.coerceIn(0, 100)
 
@@ -17,14 +15,11 @@ object LauncherFadeLogic {
     }
 
     fun blurRadiusDp(percent: Int): Float {
-        return MAX_BLUR_DP * clampPercent(percent) / 100f
+        return DrawerBlurLogic.blurRadiusPx(percent, density = 1f)
     }
-
-    fun blurSupported(sdkInt: Int): Boolean = sdkInt >= BLUR_MIN_SDK
 }
 
 data class ChromeFadePrefs(
-    val drawerFadePercent: Int = LauncherFadeLogic.DEFAULT_DRAWER_FADE,
     val homeFadePercent: Int = LauncherFadeLogic.DEFAULT_HOME_FADE,
     val drawerBlurPercent: Int = LauncherFadeLogic.DEFAULT_DRAWER_BLUR
 )

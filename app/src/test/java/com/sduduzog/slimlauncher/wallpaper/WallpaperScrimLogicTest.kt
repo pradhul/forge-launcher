@@ -6,16 +6,6 @@ import org.junit.Test
 class WallpaperScrimLogicTest {
 
     @Test
-    fun drawerFadeIsFiftyFiveToEightyPercent() {
-        assertThat(WallpaperThemeLogic.DRAWER_TOP_ALPHA).isEqualTo(0x8C)
-        assertThat(WallpaperThemeLogic.DRAWER_BOTTOM_ALPHA).isEqualTo(0xCC)
-        val dark = WallpaperThemeLogic.drawerGradient(0xFF102030.toInt())
-        assertThat(dark[0] ushr 24).isEqualTo(0x8C)
-        assertThat(dark[1] ushr 24).isEqualTo(0xCC)
-        assertThat(dark[0] and 0x00FFFFFF).isEqualTo(dark[1] and 0x00FFFFFF)
-    }
-
-    @Test
     fun homeScrimsAreLighterThanDrawer() {
         assertThat(WallpaperThemeLogic.HOME_CLOCK_ALPHA)
             .isLessThan(WallpaperThemeLogic.DRAWER_TOP_ALPHA)

@@ -1,6 +1,8 @@
 package com.sduduzog.slimlauncher.ui.home
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -13,7 +15,6 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +25,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -40,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,7 +50,12 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
@@ -58,6 +66,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.data.model.App
+import com.sduduzog.slimlauncher.wallpaper.DrawerBlurLogic
+import com.sduduzog.slimlauncher.wallpaper.DrawerMotionLogic
 import kotlinx.coroutines.delay
 
 @Composable
@@ -70,30 +80,47 @@ fun AppDrawerOverlay(
     onUnpin: (App) -> Unit,
     onAppInfo: (App) -> Unit,
     onRegenerate: (App) -> Unit,
-    onIconPacks: () -> Unit,
-    onWallpaper: () -> Unit,
-    onSettings: () -> Unit,
     onClose: () -> Unit
 ) {
+    val fade = tween<Float>(
+        durationMillis = DrawerMotionLogic.ANIM_MS,
+        easing = FastOutSlowInEasing
+    )
+    val slide = tween<androidx.compose.ui.unit.IntOffset>(
+        durationMillis = DrawerMotionLogic.ANIM_MS,
+        easing = FastOutSlowInEasing
+    )
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn() + slideInVertically { it },
-        exit = fadeOut() + slideOutVertically { it }
+        enter = fadeIn(fade) + slideInVertically(slide) { it / 10 },
+        exit = fadeOut(fade) + slideOutVertically(slide) { it / 10 }
     ) {
-        AppDrawer(
-            visible = visible,
-            state = state,
-            onQueryChange = onQueryChange,
-            onLaunch = onLaunch,
-            onPin = onPin,
-            onUnpin = onUnpin,
-            onAppInfo = onAppInfo,
-            onRegenerate = onRegenerate,
-            onIconPacks = onIconPacks,
-            onWallpaper = onWallpaper,
-            onSettings = onSettings,
-            onClose = onClose
-        )
+        Box(Modifier.fillMaxSize()) {
+            state.backdrop?.let { bitmap ->
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(DrawerBlurLogic.tintArgb(state.theme.seed, state.drawerBlurPercent)))
+            )
+            AppDrawer(
+                visible = visible,
+                state = state,
+                onQueryChange = onQueryChange,
+                onLaunch = onLaunch,
+                onPin = onPin,
+                onUnpin = onUnpin,
+                onAppInfo = onAppInfo,
+                onRegenerate = onRegenerate,
+                onClose = onClose
+            )
+        }
     }
 }
 
@@ -107,13 +134,11 @@ fun AppDrawer(
     onUnpin: (App) -> Unit,
     onAppInfo: (App) -> Unit,
     onRegenerate: (App) -> Unit,
-    onIconPacks: () -> Unit,
-    onWallpaper: () -> Unit,
-    onSettings: () -> Unit,
     onClose: () -> Unit
 ) {
     var selected by remember { mutableStateOf<DrawerAppItem?>(null) }
     var drag by remember { mutableFloatStateOf(0f) }
+    val gridState = rememberLazyGridState()
     val keyboard = LocalSoftwareKeyboardController.current
     val launchApp: (App) -> Unit = { app ->
         keyboard?.hide()
@@ -123,18 +148,42 @@ fun AppDrawer(
         keyboard?.hide()
         onClose()
     }
-    val closeOnSwipeDown = Modifier.pointerInput(Unit) {
+    val closeOnSwipeDown = Modifier.pointerInput(gridState) {
         detectVerticalDragGestures(
             onDragEnd = {
-                if (drag > 80f) closeDrawer()
+                if (DrawerMotionLogic.shouldCloseFromDrawerSwipe(
+                        drag,
+                        !gridState.canScrollBackward
+                    )
+                ) {
+                    closeDrawer()
+                }
                 drag = 0f
             },
             onVerticalDrag = { _, amount -> drag += amount }
         )
     }
+    val closeDrawerState = rememberUpdatedState(closeDrawer)
+    val closeWhenAtTop = remember(gridState) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y > 0 && !gridState.canScrollBackward) {
+                    drag += available.y
+                    if (DrawerMotionLogic.shouldCloseFromDrawerSwipe(drag, true)) {
+                        closeDrawerState.value()
+                        drag = 0f
+                    }
+                    return Offset(0f, available.y)
+                }
+                if (available.y < 0) drag = 0f
+                return Offset.Zero
+            }
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .nestedScroll(closeWhenAtTop)
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Box(
@@ -148,25 +197,14 @@ fun AppDrawer(
                 )
                 .then(closeOnSwipeDown)
         )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(closeOnSwipeDown),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OverflowMenuButton(
-                onIconPacks = onIconPacks,
-                onWallpaper = onWallpaper,
-                onSettings = onSettings
+        Box(modifier = closeOnSwipeDown) {
+            DrawerSearchField(
+                visible = visible,
+                state = state,
+                onQueryChange = onQueryChange,
+                onLaunch = launchApp
             )
         }
-        DrawerSearchField(
-            visible = visible,
-            state = state,
-            onQueryChange = onQueryChange,
-            onLaunch = launchApp
-        )
         Spacer(Modifier.height(12.dp))
         if (state.apps.isEmpty()) {
             Text(
@@ -177,6 +215,7 @@ fun AppDrawer(
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(AppDrawerGrid.PHONE_COLUMNS),
+                state = gridState,
                 modifier = Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -316,7 +355,7 @@ private fun DrawerSearchField(
     )
 }
 
-private const val KEYBOARD_AFTER_OPEN_MS = 300L
+private const val KEYBOARD_AFTER_OPEN_MS = 180L
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
