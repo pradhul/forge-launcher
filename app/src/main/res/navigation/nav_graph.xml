@@ -22,7 +22,14 @@
         <action
             android:id="@+id/action_optionsFragment_to_customiseAppsFragment"
             app:destination="@id/customiseAppsFragment" />
+        <action
+            android:id="@+id/action_optionsFragment_to_iconPacksFragment"
+            app:destination="@id/iconPacksFragment" />
     </fragment>
+    <fragment
+        android:id="@+id/iconPacksFragment"
+        android:name="com.sduduzog.slimlauncher.ui.icons.IconPacksFragment"
+        android:label="icon_packs_fragment" />
     <fragment
         android:id="@+id/customiseAppsFragment"
         android:name="com.sduduzog.slimlauncher.ui.options.CustomiseAppsFragment"

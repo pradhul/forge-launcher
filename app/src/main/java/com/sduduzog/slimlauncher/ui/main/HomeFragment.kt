@@ -16,11 +16,13 @@ import androidx.navigation.Navigation
 import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.adapters.HomeAdapter
 import com.sduduzog.slimlauncher.databinding.HomeFragmentBinding
+import com.sduduzog.slimlauncher.icons.AppIconResolver
 import com.sduduzog.slimlauncher.models.HomeApp
 import com.sduduzog.slimlauncher.models.MainViewModel
 import com.sduduzog.slimlauncher.utils.BaseFragment
 import com.sduduzog.slimlauncher.utils.OnLaunchAppListener
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.*
@@ -31,6 +33,11 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     private var _binding: HomeFragmentBinding? = null
     private val binding get() = _binding
     private val viewModel: MainViewModel by viewModels()
+    private lateinit var adapter1: HomeAdapter
+    private lateinit var adapter2: HomeAdapter
+
+    @Inject
+    lateinit var iconResolver: AppIconResolver
 
     private lateinit var receiver: BroadcastReceiver
 
@@ -39,8 +46,8 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         savedInstanceState: Bundle?
     ): View? {
         _binding = HomeFragmentBinding.inflate(inflater, container, false)
-        val adapter1 = HomeAdapter(this)
-        val adapter2 = HomeAdapter(this)
+        adapter1 = HomeAdapter(this, iconResolver)
+        adapter2 = HomeAdapter(this, iconResolver)
         binding!!.homeFragmentList.adapter = adapter1
         binding!!.homeFragmentListExp.adapter = adapter2
 
@@ -76,6 +83,10 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     override fun onResume() {
         super.onResume()
         updateClock()
+        if (::adapter1.isInitialized) {
+            adapter1.notifyDataSetChanged()
+            adapter2.notifyDataSetChanged()
+        }
     }
 
     override fun onStop() {

@@ -3,13 +3,18 @@ package com.sduduzog.slimlauncher.adapters
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.data.model.App
+import com.sduduzog.slimlauncher.icons.AppIconResolver
 import com.sduduzog.slimlauncher.utils.OnAppClickedListener
 
-class AddAppAdapter(private val listener: OnAppClickedListener) : RecyclerView.Adapter<AddAppAdapter.ViewHolder>() {
+class AddAppAdapter(
+    private val listener: OnAppClickedListener,
+    private val iconResolver: AppIconResolver
+) : RecyclerView.Adapter<AddAppAdapter.ViewHolder>() {
 
     private var apps: List<App> = listOf()
 
@@ -18,6 +23,7 @@ class AddAppAdapter(private val listener: OnAppClickedListener) : RecyclerView.A
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = apps[position]
         holder.appName.text = item.appName
+        iconResolver.bind(holder.appIcon, item.packageName, item.activityName, item.userSerial)
         holder.itemView.setOnClickListener {
             listener.onAppClicked(item)
         }
@@ -36,6 +42,7 @@ class AddAppAdapter(private val listener: OnAppClickedListener) : RecyclerView.A
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
 
         val appName: TextView = itemView.findViewById(R.id.aa_list_item_app_name)
+        val appIcon: ImageView = itemView.findViewById(R.id.aa_list_item_app_icon)
 
         override fun toString(): String {
             return super.toString() + " '${appName.text}'"

@@ -1,6 +1,5 @@
 package com.sduduzog.slimlauncher.ui.options
 
-import android.content.Context
 import android.content.Context.MODE_PRIVATE
 import android.content.Intent
 import android.os.Bundle
@@ -58,6 +57,24 @@ class OptionsFragment : BaseFragment() {
                 putBoolean(getString(R.string.prefs_settings_key_toggle_status_bar), !isHidden)
             }
         }
+        binding!!.optionsFragmentToggleIcons.setOnClickListener {
+            val settings = requireContext().getSharedPreferences(
+                getString(R.string.prefs_settings),
+                MODE_PRIVATE
+            )
+            val showing = settings.getBoolean(
+                getString(R.string.prefs_settings_key_show_icons),
+                true
+            )
+            settings.edit {
+                putBoolean(getString(R.string.prefs_settings_key_show_icons), !showing)
+            }
+        }
+        binding!!.optionsFragmentIconPacks.setOnClickListener(
+            Navigation.createNavigateOnClickListener(
+                R.id.action_optionsFragment_to_iconPacksFragment
+            )
+        )
         binding!!.optionsFragmentCustomiseApps.setOnClickListener(
             Navigation.createNavigateOnClickListener(
                 R.id.action_optionsFragment_to_customiseAppsFragment
