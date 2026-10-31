@@ -3,6 +3,7 @@ package com.sduduzog.slimlauncher
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.Resources
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Build
@@ -24,6 +25,7 @@ import com.sduduzog.slimlauncher.icons.InstalledAppsQuery
 import com.sduduzog.slimlauncher.icons.PackCreateSpec
 import com.sduduzog.slimlauncher.icons.PackThemeExtractor
 import com.sduduzog.slimlauncher.icons.StylePreset
+import com.sduduzog.slimlauncher.wallpaper.BingWallpaperApplier
 import com.sduduzog.slimlauncher.wallpaper.WallpaperThemeMonitor
 import java.io.File
 import com.sduduzog.slimlauncher.utils.BaseFragment
@@ -142,6 +144,17 @@ class MainActivity : AppCompatActivity(),
             iconPackGenerator.startPack(pack, installedAppsQuery.load())
             return true
         }
+        if (intent?.hasExtra(EXTRA_DRAWER_BLUR) == true) {
+            iconPreferences.drawerBlurPercent = intent.getIntExtra(EXTRA_DRAWER_BLUR, 50)
+        }
+        val wallpaperPath = intent?.getStringExtra(EXTRA_SET_WALLPAPER)
+        if (!wallpaperPath.isNullOrBlank()) {
+            val bitmap = runCatching { BitmapFactory.decodeFile(wallpaperPath) }.getOrNull()
+            if (bitmap != null) {
+                BingWallpaperApplier.setWallpaper(this, bitmap)
+                wallpaperThemeMonitor.refreshFromSystem()
+            }
+        }
         if (intent?.getStringExtra(EXTRA_GENERATE_PRESET) != null) {
             wallpaperThemeMonitor.refreshFromSystem()
             return true
@@ -222,6 +235,9 @@ class MainActivity : AppCompatActivity(),
         const val EXTRA_GENERATE_PRESET = "forge_generate_preset"
         const val EXTRA_USE_STOCK = "forge_use_stock"
         const val EXTRA_CUSTOM_STYLE = "forge_custom_style"
+        const val EXTRA_SET_WALLPAPER = "forge_set_wallpaper"
+        const val EXTRA_DRAWER_BLUR = "forge_drawer_blur"
+        const val EXTRA_OPEN_DRAWER = "forge_open_drawer"
 
         fun resolveTheme(i: Int): Int {
             return when (i) {

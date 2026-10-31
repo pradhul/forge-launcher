@@ -33,6 +33,7 @@ object BingWallpaperApplier {
 
     fun setWallpaper(context: Context, bitmap: Bitmap) {
         val color = ensureFullColor(bitmap)
+        WallpaperBitmapStore.saveTo(context, color)
         val manager = WallpaperManager.getInstance(context)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             manager.setBitmap(color, null, true, whichFlags())

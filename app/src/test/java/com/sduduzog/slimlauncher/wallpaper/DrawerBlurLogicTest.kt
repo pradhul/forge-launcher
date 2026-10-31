@@ -18,7 +18,8 @@ class DrawerBlurLogicTest {
         assertThat(DrawerBlurLogic.tintAlpha(0)).isEqualTo(DrawerBlurLogic.MIN_TINT)
         assertThat(DrawerBlurLogic.tintAlpha(100)).isEqualTo(DrawerBlurLogic.MAX_TINT)
         assertThat(DrawerBlurLogic.tintAlpha(50)).isGreaterThan(DrawerBlurLogic.MIN_TINT)
-        assertThat(DrawerBlurLogic.tintAlpha(0)).isGreaterThan(0.2f)
+        assertThat(DrawerBlurLogic.tintAlpha(0)).isLessThan(0.2f)
+        assertThat(DrawerBlurLogic.tintAlpha(0)).isGreaterThan(0f)
         val argb = DrawerBlurLogic.tintArgb(0xFF102030.toInt(), 50)
         assertThat(argb ushr 24).isGreaterThan(0)
     }
@@ -82,5 +83,56 @@ class DrawerBlurLogicTest {
         assertThat(reloaded.chrome.value.drawerBlurPercent).isEqualTo(80)
         prefs.drawerBlurPercent = 250
         assertThat(prefs.drawerBlurPercent).isEqualTo(100)
+    }
+
+    @Test
+    fun blurBehindRequiresTranslucentCrossWindowPath() {
+        assertThat(
+            DrawerBlurLogic.blurBehindRadiusPx(50, 1f, crossWindowEnabled = true, sdkInt = 31)
+        ).isEqualTo(20)
+        assertThat(
+            DrawerBlurLogic.blurBehindRadiusPx(0, 3f, crossWindowEnabled = true, sdkInt = 31)
+        ).isEqualTo(0)
+        assertThat(
+            DrawerBlurLogic.blurBehindRadiusPx(100, 1f, crossWindowEnabled = false, sdkInt = 31)
+        ).isEqualTo(0)
+        assertThat(DrawerBlurLogic.backdropMode(31, true, hasBitmap = false))
+            .isEqualTo(DrawerBlurLogic.BackdropMode.LIVE_WINDOW)
+        assertThat(DrawerBlurLogic.backdropMode(31, false, hasBitmap = true))
+            .isEqualTo(DrawerBlurLogic.BackdropMode.BITMAP)
+        assertThat(DrawerBlurLogic.backdropMode(31, false, hasBitmap = false))
+            .isEqualTo(DrawerBlurLogic.BackdropMode.COLOR_SCRIM)
+        assertThat(
+            DrawerBlurLogic.shouldDrawBitmapBackdrop(
+                DrawerBlurLogic.BackdropMode.BITMAP,
+                hasBitmap = true,
+                percent = 50
+            )
+        ).isTrue()
+        assertThat(
+            DrawerBlurLogic.shouldDrawBitmapBackdrop(
+                DrawerBlurLogic.BackdropMode.LIVE_WINDOW,
+                hasBitmap = true,
+                percent = 0
+            )
+        ).isFalse()
+        assertThat(
+            DrawerBlurLogic.shouldDrawBitmapBackdrop(
+                DrawerBlurLogic.BackdropMode.COLOR_SCRIM,
+                hasBitmap = false,
+                percent = 100
+            )
+        ).isFalse()
+    }
+
+    @Test
+    fun wallpaperColorsScrimIsStrongerThanTint() {
+        assertThat(DrawerBlurLogic.fallbackScrimAlpha(0))
+            .isGreaterThan(DrawerBlurLogic.tintAlpha(0))
+        assertThat(DrawerBlurLogic.fallbackScrimAlpha(100))
+            .isGreaterThan(DrawerBlurLogic.tintAlpha(100))
+        val scrim = DrawerBlurLogic.fallbackScrimArgb(0xFF336699.toInt(), 80)
+        assertThat(scrim ushr 24).isGreaterThan(0)
+        assertThat(scrim and 0x00FFFFFF).isEqualTo(0x00336699)
     }
 }

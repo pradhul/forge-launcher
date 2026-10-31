@@ -7,6 +7,7 @@ import com.sduduzog.slimlauncher.icons.IconPreferences
 import com.sduduzog.slimlauncher.icons.PackTheme
 import com.sduduzog.slimlauncher.icons.PackThemeController
 import com.sduduzog.slimlauncher.wallpaper.BingWallpaperScheduler
+import com.sduduzog.slimlauncher.wallpaper.WallpaperBitmapStore
 import com.sduduzog.slimlauncher.wallpaper.WallpaperPackCoordinator
 import com.sduduzog.slimlauncher.wallpaper.WallpaperThemeMonitor
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -34,7 +35,8 @@ class WallpaperThemeViewModel @Inject constructor(
     private val prefs: IconPreferences,
     private val themeController: PackThemeController,
     private val monitor: WallpaperThemeMonitor,
-    private val coordinator: WallpaperPackCoordinator
+    private val coordinator: WallpaperPackCoordinator,
+    private val wallpaperStore: WallpaperBitmapStore
 ) : ViewModel() {
 
     val ui: StateFlow<WallpaperThemeUiState> = prefs.revision.map { snapshot() }
@@ -45,6 +47,8 @@ class WallpaperThemeViewModel @Inject constructor(
         BingWallpaperScheduler.sync(context, prefs)
         if (enabled) {
             BingWallpaperScheduler.refreshNow(context, prefs.bingUnmeteredOnly)
+        } else {
+            wallpaperStore.clear()
         }
     }
 

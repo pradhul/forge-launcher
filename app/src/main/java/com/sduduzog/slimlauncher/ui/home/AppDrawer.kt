@@ -46,6 +46,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -96,18 +97,43 @@ fun AppDrawerOverlay(
         exit = fadeOut(fade) + slideOutVertically(slide) { it / 10 }
     ) {
         Box(Modifier.fillMaxSize()) {
-            state.backdrop?.let { bitmap ->
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
+            val bitmap = state.backdrop
+            val mode = DrawerBlurLogic.backdropMode(
+                sdkInt = android.os.Build.VERSION.SDK_INT,
+                crossWindowEnabled = state.crossWindowBlur,
+                hasBitmap = bitmap != null
+            )
+            if (DrawerBlurLogic.shouldDrawBitmapBackdrop(mode, bitmap != null, state.drawerBlurPercent)) {
+                bitmap?.let {
+                    val blurDp = DrawerBlurLogic.blurRadiusPx(
+                        state.drawerBlurPercent,
+                        1f
+                    )
+                    Image(
+                        bitmap = it.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .then(
+                                if (android.os.Build.VERSION.SDK_INT >= 31 && blurDp > 0f) {
+                                    Modifier.blur(blurDp.dp)
+                                } else {
+                                    Modifier
+                                }
+                            ),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
+            val scrim = if (bitmap == null && state.drawerBlurPercent > 0) {
+                DrawerBlurLogic.fallbackScrimArgb(state.theme.seed, state.drawerBlurPercent)
+            } else {
+                DrawerBlurLogic.tintArgb(state.theme.seed, state.drawerBlurPercent)
             }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(DrawerBlurLogic.tintArgb(state.theme.seed, state.drawerBlurPercent)))
+                    .background(Color(scrim))
             )
             AppDrawer(
                 visible = visible,

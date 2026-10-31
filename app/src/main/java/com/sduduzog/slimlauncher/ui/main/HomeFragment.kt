@@ -1,5 +1,6 @@
 package com.sduduzog.slimlauncher.ui.main
 
+import android.app.Dialog
 import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
 import android.content.ActivityNotFoundException
@@ -13,6 +14,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.UserManager
+import android.view.KeyEvent
 import android.view.WindowManager
 import android.provider.AlarmClock
 import android.provider.CalendarContract
@@ -29,15 +31,20 @@ import androidx.appcompat.app.AlertDialog
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.ContextCompat
 import androidx.core.view.GestureDetectorCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.Navigation
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.adapters.HomeAdapter
 import com.sduduzog.slimlauncher.databinding.HomeFragmentBinding
@@ -50,6 +57,7 @@ import com.sduduzog.slimlauncher.ui.home.AppDrawerOverlay
 import com.sduduzog.slimlauncher.ui.home.AppDrawerViewModel
 import com.sduduzog.slimlauncher.ui.icons.ForgeTheme
 import com.sduduzog.slimlauncher.wallpaper.DrawerBlurLogic
+import com.sduduzog.slimlauncher.wallpaper.DrawerBlurWindow
 import com.sduduzog.slimlauncher.wallpaper.DrawerMotionLogic
 import com.sduduzog.slimlauncher.wallpaper.WallpaperThemeLogic
 import com.sduduzog.slimlauncher.utils.BaseFragment
@@ -74,6 +82,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     private lateinit var adapter: HomeAdapter
     private var drawerOpen by mutableStateOf(false)
     private var homeApps: List<HomeApp> = emptyList()
+    private var drawerDialog: Dialog? = null
 
     @Inject
     lateinit var iconResolver: AppIconResolver
@@ -108,33 +117,60 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         binding!!.homeFragmentOverflow.setOnClickListener { showOverflowMenu(it) }
         binding!!.homeFragmentDrawerHandle.setOnClickListener { openDrawer() }
         setupGestures()
-        setupDrawer()
         observeIconRevision()
         applyLauncherTheme()
         return binding!!.root
     }
 
-    private fun setupDrawer() {
-        binding!!.homeFragmentDrawer.setContent {
-            val state by drawerViewModel.ui.collectAsStateWithLifecycle()
-            ForgeTheme(theme = state.theme, drawerScrim = true) {
-                AppDrawerOverlay(
-                    visible = drawerOpen,
-                    state = state,
-                    onQueryChange = drawerViewModel::onQueryChange,
-                    onLaunch = { app ->
-                        drawerViewModel.recordLaunch(app)
-                        launchInstalled(app)
-                        closeDrawer()
-                    },
-                    onPin = { viewModel.pin(it) },
-                    onUnpin = { viewModel.unpin(it.packageName, it.userSerial) },
-                    onAppInfo = ::openAppInfo,
-                    onRegenerate = drawerViewModel::regenerate,
-                    onClose = { closeDrawer() }
-                )
+    private fun ensureDrawerDialog(): Dialog {
+        drawerDialog?.let { return it }
+        val composeView = ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setViewTreeLifecycleOwner(viewLifecycleOwner)
+            setViewTreeViewModelStoreOwner(this@HomeFragment)
+            setViewTreeSavedStateRegistryOwner(this@HomeFragment)
+            setContent {
+                val state by drawerViewModel.ui.collectAsStateWithLifecycle()
+                ForgeTheme(theme = state.theme, drawerScrim = true) {
+                    AppDrawerOverlay(
+                        visible = drawerOpen,
+                        state = state,
+                        onQueryChange = drawerViewModel::onQueryChange,
+                        onLaunch = { app ->
+                            drawerViewModel.recordLaunch(app)
+                            launchInstalled(app)
+                            closeDrawer()
+                        },
+                        onPin = { viewModel.pin(it) },
+                        onUnpin = { viewModel.unpin(it.packageName, it.userSerial) },
+                        onAppInfo = ::openAppInfo,
+                        onRegenerate = drawerViewModel::regenerate,
+                        onClose = { closeDrawer() }
+                    )
+                }
             }
         }
+        val dialog = Dialog(requireContext(), R.style.ForgeDrawerDialog)
+        dialog.setContentView(
+            composeView,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+        dialog.setCanceledOnTouchOutside(false)
+        dialog.setOnCancelListener { closeDrawer() }
+        dialog.setOnKeyListener { _, keyCode, event ->
+            if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
+                closeDrawer()
+                true
+            } else {
+                false
+            }
+        }
+        dialog.window?.let { DrawerBlurWindow.prepareTranslucent(it) }
+        drawerDialog = dialog
+        return dialog
     }
 
     private fun setupGestures() {
@@ -235,6 +271,13 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         if (::adapter.isInitialized) {
             adapter.notifyDataSetChanged()
         }
+        val launch = activity?.intent
+        if (com.sduduzog.slimlauncher.BuildConfig.DEBUG &&
+            launch?.getBooleanExtra(com.sduduzog.slimlauncher.MainActivity.EXTRA_OPEN_DRAWER, false) == true
+        ) {
+            launch.removeExtra(com.sduduzog.slimlauncher.MainActivity.EXTRA_OPEN_DRAWER)
+            binding?.root?.post { openDrawer() }
+        }
     }
 
     override fun onStop() {
@@ -247,6 +290,8 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     }
 
     override fun onDestroyView() {
+        drawerDialog?.dismiss()
+        drawerDialog = null
         super.onDestroyView()
         _binding = null
     }
@@ -424,26 +469,28 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
 
     private fun openDrawer() {
         drawerViewModel.refreshBackdrop()
-        binding?.homeFragmentDrawer?.isVisible = true
-        binding?.homeFragmentOverflow?.bringToFront()
-        binding?.homeFragmentDrawer?.post {
-            drawerOpen = true
-            syncWindowBlur()
+        val dialog = ensureDrawerDialog()
+        if (!dialog.isShowing) {
+            dialog.show()
+            dialog.window?.let { DrawerBlurWindow.prepareTranslucent(it) }
         }
+        drawerOpen = true
+        syncWindowBlur()
         drawerViewModel.refreshInstalled()
     }
 
     private fun closeDrawer() {
-        if (!drawerOpen && binding?.homeFragmentDrawer?.isVisible != true) return
+        if (!drawerOpen && drawerDialog?.isShowing != true) return
         drawerOpen = false
         syncWindowBlur()
         swallowOverflowClicks()
         drawerViewModel.onQueryChange("")
         val imm = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
         imm?.hideSoftInputFromWindow(binding?.root?.windowToken, 0)
-        binding?.homeFragmentDrawer?.postDelayed({
+        val host = binding?.root ?: drawerDialog?.window?.decorView
+        host?.postDelayed({
             if (!drawerOpen) {
-                binding?.homeFragmentDrawer?.isVisible = false
+                drawerDialog?.hide()
             }
         }, DrawerMotionLogic.ANIM_MS.toLong())
     }
@@ -455,17 +502,19 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     }
 
     private fun syncWindowBlur() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-        val window = activity?.window ?: return
-        val wm = context?.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
-        val enabled = wm.isCrossWindowBlurEnabled
-        val radius = DrawerBlurLogic.windowBlurRadiusPx(
-            percent = iconPreferences.drawerBlurPercent,
+        val wm = context?.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+        val enabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            wm?.isCrossWindowBlurEnabled == true
+        drawerViewModel.setCrossWindowBlur(enabled)
+        val window = drawerDialog?.window ?: return
+        val percent = if (drawerOpen) iconPreferences.drawerBlurPercent else 0
+        DrawerBlurWindow.apply(
+            window = window,
+            percent = percent,
             density = resources.displayMetrics.density,
             crossWindowEnabled = enabled,
             sdkInt = Build.VERSION.SDK_INT
         )
-        window.setBackgroundBlurRadius(if (drawerOpen) radius else 0)
     }
 
     private fun expandNotificationShade() {

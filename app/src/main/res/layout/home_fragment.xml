@@ -122,18 +122,6 @@
         app:srcCompat="@drawable/ic_photo_camera"
         tools:ignore="ContentDescription" />
 
-    <androidx.compose.ui.platform.ComposeView
-        android:id="@+id/home_fragment_drawer"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:clickable="true"
-        android:focusable="true"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
     <ImageButton
         android:id="@+id/home_fragment_overflow"
         android:layout_width="48dp"

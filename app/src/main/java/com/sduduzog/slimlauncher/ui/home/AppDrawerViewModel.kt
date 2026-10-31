@@ -40,7 +40,8 @@ data class AppDrawerUiState(
     val frequent: List<DrawerAppItem> = emptyList(),
     val openKeyboardOnOpen: Boolean = false,
     val drawerBlurPercent: Int = LauncherFadeLogic.DEFAULT_DRAWER_BLUR,
-    val backdrop: Bitmap? = null
+    val backdrop: Bitmap? = null,
+    val crossWindowBlur: Boolean = false
 )
 
 @HiltViewModel
@@ -61,6 +62,7 @@ class AppDrawerViewModel @Inject constructor(
     private val _home = MutableStateFlow<List<HomeApp>>(emptyList())
     private val _icons = MutableStateFlow<Map<String, Bitmap>>(emptyMap())
     private val _backdrop = MutableStateFlow<Bitmap?>(null)
+    private val _crossWindowBlur = MutableStateFlow(false)
 
     val ui: StateFlow<AppDrawerUiState> = combine(
         combine(_query, _installed, _home, _icons) { query, installed, home, icons ->
@@ -69,8 +71,10 @@ class AppDrawerViewModel @Inject constructor(
         prefs.revision,
         launchStore.revision,
         prefs.chrome,
-        _backdrop
-    ) { snapshot, _, _, chrome, backdrop ->
+        combine(_backdrop, _crossWindowBlur) { backdrop, crossWindow ->
+            backdrop to crossWindow
+        }
+    ) { snapshot, _, _, chrome, backdropAndBlur ->
         val pins = snapshot.home.map { it.packageName to it.userSerial }
         fun itemOf(app: App) = DrawerAppItem(
             app = app,
@@ -94,7 +98,8 @@ class AppDrawerViewModel @Inject constructor(
             frequent = frequent,
             openKeyboardOnOpen = prefs.openKeyboardOnDrawer,
             drawerBlurPercent = chrome.drawerBlurPercent,
-            backdrop = backdrop
+            backdrop = backdropAndBlur.first,
+            crossWindowBlur = backdropAndBlur.second
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppDrawerUiState())
 
@@ -123,6 +128,10 @@ class AppDrawerViewModel @Inject constructor(
     override fun onCleared() {
         repository.apps.removeObserver(homeObserver)
         super.onCleared()
+    }
+
+    fun setCrossWindowBlur(enabled: Boolean) {
+        _crossWindowBlur.value = enabled
     }
 
     fun refreshBackdrop() {
