@@ -16,6 +16,9 @@ android {
         versionName = "1.0.0"
         versionCode = 60
         vectorDrawables { useSupportLibrary = true }
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
         signingConfigs {
             if (project.extra.has("RELEASE_STORE_FILE")) {
                 register("release") {
@@ -45,10 +48,41 @@ android {
             signingConfig = signingConfigs.maybeCreate("release")
         }
         named("debug").configure {
-            isMinifyEnabled = false
+            // Same debug keystore as before (default debug signingConfig).
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
+            )
+            ndk {
+                abiFilters += "arm64-v8a"
+            }
+        }
+    }
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+            excludes += listOf(
+                "**/armeabi/**",
+                "**/armeabi-v7a/**",
+                "**/x86/**",
+                "**/x86_64/**",
+                "**/mips/**",
+                "**/mips64/**"
+            )
+        }
+        resources {
+            excludes += listOf(
+                "META-INF/LICENSE*",
+                "META-INF/NOTICE*",
+                "META-INF/AL2.0",
+                "META-INF/LGPL2.1",
+                "META-INF/*.kotlin_module",
+                "META-INF/*.version",
+                "META-INF/androidx/**",
+                "META-INF/androidx*.version",
+                "kotlin/**"
             )
         }
     }
@@ -111,7 +145,6 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
-    debugImplementation("androidx.compose.ui:ui-tooling")
 
     // Unit test libs
     testImplementation("junit:junit:4.13.2")
