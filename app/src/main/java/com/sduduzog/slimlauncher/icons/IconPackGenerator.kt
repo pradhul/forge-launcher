@@ -111,6 +111,7 @@ class IconPackGenerator @Inject constructor(
                         app.packageName,
                         if (onDevice) bytes else ImageUtils.downscaleToSquarePng(bytes)
                     )
+                    prefs.notifyIconsChanged()
                     _progress.update { it.copy(succeeded = it.succeeded + 1, lastError = null) }
                 } catch (cancelled: CancellationException) {
                     throw cancelled

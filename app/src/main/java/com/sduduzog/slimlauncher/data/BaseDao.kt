@@ -10,6 +10,12 @@ interface BaseDao {
     @get:Query("SELECT * FROM home_apps ORDER BY sorting_index ASC")
     val apps: LiveData<List<HomeApp>>
 
+    @Query("SELECT * FROM home_apps ORDER BY sorting_index ASC")
+    fun getAppsSync(): List<HomeApp>
+
+    @Query("SELECT COUNT(*) FROM home_apps")
+    fun countApps(): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun add(app: HomeApp)
 

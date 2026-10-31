@@ -17,7 +17,8 @@ android {
         versionCode = 60
         vectorDrawables { useSupportLibrary = true }
         ndk {
-            abiFilters += "arm64-v8a"
+            abiFilters += ((project.findProperty("forgeAbi") as? String)?.takeIf { it.isNotBlank() }
+                ?: "arm64-v8a")
         }
         signingConfigs {
             if (project.extra.has("RELEASE_STORE_FILE")) {
@@ -55,22 +56,15 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            ndk {
-                abiFilters += "arm64-v8a"
-            }
         }
     }
     packaging {
         jniLibs {
             useLegacyPackaging = true
-            excludes += listOf(
-                "**/armeabi/**",
-                "**/armeabi-v7a/**",
-                "**/x86/**",
-                "**/x86_64/**",
-                "**/mips/**",
-                "**/mips64/**"
-            )
+            val keepAbi = (project.findProperty("forgeAbi") as? String)?.takeIf { it.isNotBlank() }
+                ?: "arm64-v8a"
+            val allAbis = listOf("armeabi", "armeabi-v7a", "arm64-v8a", "x86", "x86_64", "mips", "mips64")
+            excludes += allAbis.filter { it != keepAbi }.map { "**/$it/**" }
         }
         resources {
             excludes += listOf(

@@ -11,17 +11,17 @@ import com.sduduzog.slimlauncher.icons.AppIconResolver
 import com.sduduzog.slimlauncher.models.HomeApp
 import com.sduduzog.slimlauncher.utils.OnLaunchAppListener
 
-
 class HomeAdapter(
     private val listener: OnLaunchAppListener,
-    private val iconResolver: AppIconResolver
+    private val iconResolver: AppIconResolver,
+    private val onLongPress: (HomeApp) -> Unit = {}
 ) : RecyclerView.Adapter<HomeAdapter.ViewHolder>() {
 
     private var apps: List<HomeApp> = listOf()
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context)
-                .inflate(R.layout.main_fragment_list_item, parent, false)
+            .inflate(R.layout.main_fragment_list_item, parent, false)
         return ViewHolder(view)
     }
 
@@ -32,6 +32,10 @@ class HomeAdapter(
         holder.itemView.setOnClickListener {
             listener.onLaunch(item, it)
         }
+        holder.itemView.setOnLongClickListener {
+            onLongPress(item)
+            true
+        }
     }
 
     override fun getItemCount(): Int = apps.size
@@ -41,13 +45,8 @@ class HomeAdapter(
         notifyDataSetChanged()
     }
 
-
     inner class ViewHolder(mView: View) : RecyclerView.ViewHolder(mView) {
         val mLabelView: TextView = mView.findViewById(R.id.home_fragment_list_item_app_name)
         val mIconView: ImageView = mView.findViewById(R.id.home_fragment_list_item_app_icon)
-
-        override fun toString(): String {
-            return super.toString() + " '" + mLabelView.text + "'"
-        }
     }
 }

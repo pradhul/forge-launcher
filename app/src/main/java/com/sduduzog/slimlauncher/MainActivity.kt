@@ -1,5 +1,6 @@
 package com.sduduzog.slimlauncher
 
+import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.Resources
 import android.os.Build
@@ -79,6 +80,12 @@ class MainActivity : AppCompatActivity(),
         onBackPressedDispatcher.addCallback(this, backPressedCallback)
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        goHome()
+    }
+
     override fun onResume() {
         super.onResume()
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
@@ -119,8 +126,14 @@ class MainActivity : AppCompatActivity(),
     }
 
     override fun onHomePressed() {
+        goHome()
+    }
+
+    private fun goHome() {
+        if (::navigator.isInitialized) {
+            navigator.popBackStack(R.id.homeFragment, false)
+        }
         dispatchHome()
-        navigator.popBackStack(R.id.homeFragment, false)
     }
 
     private fun showSystemUI() {

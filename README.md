@@ -10,8 +10,9 @@ Slim’s idea is *all you need is less* — a short home list, no feed, no widge
 
 ## Features
 
-- Minimal home screen with a short app list
-- App icons next to labels on the home list and the full app list (toggle in Options)
+- Minimal home screen with pinned apps (first launch auto-pins Phone, Messages, Chrome, Camera, Settings, Play Store when those apps exist)
+- A real **All apps** drawer: swipe up or tap the handle, search, launch, long-press to pin/unpin / app info / regenerate
+- App icons next to labels on home and in the drawer (pack icon when applied, otherwise stock)
 - Icon packs stored on the device: name, style prompt, and per-package PNGs
 - Create, list, apply, and delete packs; revert to stock icons at any time
 - Missing pack icons fall back to the system icon
@@ -22,8 +23,8 @@ Slim’s idea is *all you need is less* — a short home list, no feed, no widge
 ## How to use
 
 1. Build and install the debug APK (`./gradlew assembleDebug`). Forge can sit next to Slim because the application id is different.
-2. Set **Forge** as the Home app (long-press the Home button or open device home settings).
-3. Open **Options → Icon packs**.
+2. Set **Forge** as the Home app (long-press the Home button or open device home settings). Home button returns to the home list and closes the drawer.
+3. Tap **All apps** (or swipe up) to open the drawer. Long-press the home screen for Icon packs / Options.
 4. Tap **Create pack**. Mode defaults to **On-device styles** — pick a preset (or your own photo) and a strength, then Start. No API key required.
 5. Wait while Forge stylises each installed launcher app on the phone (typically well under a minute for ~60 apps). You can cancel; a partial pack is kept.
 6. Apply the pack (generation applies it when it finishes with at least one icon). Apps not in the pack keep their stock icons.

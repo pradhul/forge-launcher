@@ -26,6 +26,12 @@
     <string name="prefs_settings_key_applied_pack" translatable="false">key_applied_pack_id</string>
     <string name="choose_time_format_dialog_title">Choose Time Format</string>
     <string name="main_fragment_options">Options</string>
+    <string name="home_all_apps">All apps</string>
+    <string name="home_empty_hint">Open All apps, then long-press an app to pin it here.</string>
+    <string name="home_action_add">Add to home</string>
+    <string name="home_action_remove">Remove from home</string>
+    <string name="home_action_app_info">App info</string>
+    <string name="home_action_regenerate">Regenerate icon</string>
     <string name="options_fragment_about_slim">About Forge</string>
     <string name="options_fragment_toggle_icons">Toggle Icons</string>
     <string name="options_fragment_icon_packs">Icon Packs</string>
