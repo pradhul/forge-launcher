@@ -35,7 +35,8 @@ data class AppDrawerUiState(
     val apps: List<DrawerAppItem> = emptyList(),
     val canRegenerate: Boolean = false,
     val theme: PackTheme = PackTheme.STOCK,
-    val frequent: List<DrawerAppItem> = emptyList()
+    val frequent: List<DrawerAppItem> = emptyList(),
+    val openKeyboardOnOpen: Boolean = false
 )
 
 @HiltViewModel
@@ -82,7 +83,8 @@ class AppDrawerViewModel @Inject constructor(
             canRegenerate = !prefs.appliedPackId.isNullOrBlank() &&
                 store.getPack(prefs.appliedPackId!!) != null,
             theme = themeController.active(),
-            frequent = frequent
+            frequent = frequent,
+            openKeyboardOnOpen = prefs.openKeyboardOnDrawer
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppDrawerUiState())
 

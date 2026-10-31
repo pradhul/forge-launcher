@@ -3,8 +3,11 @@ package com.sduduzog.slimlauncher
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.Resources
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
@@ -21,6 +24,7 @@ import com.sduduzog.slimlauncher.icons.InstalledAppsQuery
 import com.sduduzog.slimlauncher.icons.PackCreateSpec
 import com.sduduzog.slimlauncher.icons.PackThemeExtractor
 import com.sduduzog.slimlauncher.icons.StylePreset
+import com.sduduzog.slimlauncher.wallpaper.WallpaperThemeMonitor
 import java.io.File
 import com.sduduzog.slimlauncher.utils.BaseFragment
 import com.sduduzog.slimlauncher.utils.HomeWatcher
@@ -46,6 +50,7 @@ class MainActivity : AppCompatActivity(),
     @Inject lateinit var iconPreferences: IconPreferences
     @Inject lateinit var installedAppsQuery: InstalledAppsQuery
     @Inject lateinit var packThemeExtractor: PackThemeExtractor
+    @Inject lateinit var wallpaperThemeMonitor: WallpaperThemeMonitor
     private val backPressedCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
             dispatchBack()
@@ -74,8 +79,11 @@ class MainActivity : AppCompatActivity(),
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             WindowCompat.setDecorFitsSystemWindows(window, false)
         }
+        window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+        window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         binding = MainActivityBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        wallpaperThemeMonitor.start()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, windowInsets ->
                 val insets = windowInsets.getInsets(

@@ -41,6 +41,21 @@ class AppDrawerLogicTest {
     }
 
     @Test
+    fun imeSearchLaunchesOnlyWhenExactlyOneMatch() {
+        assertThat(AppDrawerLogic.imeLaunchTarget(emptyList())).isNull()
+        assertThat(AppDrawerLogic.imeLaunchTarget(apps)).isNull()
+        assertThat(AppDrawerLogic.imeLaunchTarget(listOf(apps.first())))
+            .isEqualTo(apps.first())
+    }
+
+    @Test
+    fun keyboardOpensOnlyWhenSettingOnAndDrawerVisible() {
+        assertThat(AppDrawerLogic.shouldShowKeyboard(false, true)).isFalse()
+        assertThat(AppDrawerLogic.shouldShowKeyboard(true, false)).isFalse()
+        assertThat(AppDrawerLogic.shouldShowKeyboard(true, true)).isTrue()
+    }
+
+    @Test
     fun gridKeysStayUniqueWhenPackageHasTwoLaunchers() {
         val apps = listOf(
             App("Google", "com.google.android.googlequicksearchbox", "SearchActivity", 0L),

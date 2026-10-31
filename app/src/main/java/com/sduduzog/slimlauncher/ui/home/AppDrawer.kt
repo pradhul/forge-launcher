@@ -24,14 +24,18 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -39,14 +43,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.data.model.App
+import kotlinx.coroutines.delay
 
 @Composable
 fun AppDrawerOverlay(
@@ -59,6 +71,8 @@ fun AppDrawerOverlay(
     onAppInfo: (App) -> Unit,
     onRegenerate: (App) -> Unit,
     onIconPacks: () -> Unit,
+    onWallpaper: () -> Unit,
+    onSettings: () -> Unit,
     onClose: () -> Unit
 ) {
     AnimatedVisibility(
@@ -67,6 +81,7 @@ fun AppDrawerOverlay(
         exit = fadeOut() + slideOutVertically { it }
     ) {
         AppDrawer(
+            visible = visible,
             state = state,
             onQueryChange = onQueryChange,
             onLaunch = onLaunch,
@@ -75,6 +90,8 @@ fun AppDrawerOverlay(
             onAppInfo = onAppInfo,
             onRegenerate = onRegenerate,
             onIconPacks = onIconPacks,
+            onWallpaper = onWallpaper,
+            onSettings = onSettings,
             onClose = onClose
         )
     }
@@ -82,6 +99,7 @@ fun AppDrawerOverlay(
 
 @Composable
 fun AppDrawer(
+    visible: Boolean = true,
     state: AppDrawerUiState,
     onQueryChange: (String) -> Unit,
     onLaunch: (App) -> Unit,
@@ -90,14 +108,33 @@ fun AppDrawer(
     onAppInfo: (App) -> Unit,
     onRegenerate: (App) -> Unit,
     onIconPacks: () -> Unit,
+    onWallpaper: () -> Unit,
+    onSettings: () -> Unit,
     onClose: () -> Unit
 ) {
     var selected by remember { mutableStateOf<DrawerAppItem?>(null) }
     var drag by remember { mutableFloatStateOf(0f) }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val launchApp: (App) -> Unit = { app ->
+        keyboard?.hide()
+        onLaunch(app)
+    }
+    val closeDrawer: () -> Unit = {
+        keyboard?.hide()
+        onClose()
+    }
+    val closeOnSwipeDown = Modifier.pointerInput(Unit) {
+        detectVerticalDragGestures(
+            onDragEnd = {
+                if (drag > 80f) closeDrawer()
+                drag = 0f
+            },
+            onVerticalDrag = { _, amount -> drag += amount }
+        )
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Box(
@@ -109,46 +146,26 @@ fun AppDrawer(
                     MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f),
                     MaterialTheme.shapes.small
                 )
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onDragEnd = {
-                            if (drag > 80f) onClose()
-                            drag = 0f
-                        },
-                        onVerticalDrag = { _, amount -> drag += amount }
-                    )
-                }
+                .then(closeOnSwipeDown)
         )
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(closeOnSwipeDown),
+            horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                "All apps",
-                style = MaterialTheme.typography.headlineMedium,
-                fontSize = 28.sp,
-                color = MaterialTheme.colorScheme.onBackground
+            OverflowMenuButton(
+                onIconPacks = onIconPacks,
+                onWallpaper = onWallpaper,
+                onSettings = onSettings
             )
-            Row {
-                TextButton(onClick = onIconPacks) { Text("Icon packs") }
-                TextButton(onClick = onClose) { Text("Close") }
-            }
         }
-        OutlinedTextField(
-            value = state.query,
-            onValueChange = onQueryChange,
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            placeholder = { Text("Search apps") },
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = MaterialTheme.colorScheme.onBackground,
-                unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
-                focusedBorderColor = MaterialTheme.colorScheme.onBackground,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                cursorColor = MaterialTheme.colorScheme.onBackground
-            )
+        DrawerSearchField(
+            visible = visible,
+            state = state,
+            onQueryChange = onQueryChange,
+            onLaunch = launchApp
         )
         Spacer(Modifier.height(12.dp))
         if (state.apps.isEmpty()) {
@@ -182,7 +199,7 @@ fun AppDrawer(
                     ) { item ->
                         DrawerGridCell(
                             item = item,
-                            onClick = { onLaunch(item.app) },
+                            onClick = { launchApp(item.app) },
                             onLongClick = { selected = item }
                         )
                     }
@@ -196,7 +213,7 @@ fun AppDrawer(
                 items(state.apps, key = { AppDrawerLogic.itemKey(it.app) }) { item ->
                     DrawerGridCell(
                         item = item,
-                        onClick = { onLaunch(item.app) },
+                        onClick = { launchApp(item.app) },
                         onLongClick = { selected = item }
                     )
                 }
@@ -227,6 +244,79 @@ fun AppDrawer(
         )
     }
 }
+
+@Composable
+private fun DrawerSearchField(
+    visible: Boolean,
+    state: AppDrawerUiState,
+    onQueryChange: (String) -> Unit,
+    onLaunch: (App) -> Unit
+) {
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusRequester = remember { FocusRequester() }
+    val onBackground = state.theme.onBackground
+    val container = Color(DrawerSearchStyle.containerColor(state.theme.background, state.theme.accent))
+    val text = Color(DrawerSearchStyle.textColor(onBackground))
+    val placeholder = Color(DrawerSearchStyle.placeholderColor(onBackground))
+    val icon = Color(DrawerSearchStyle.iconColor(onBackground))
+    val cursor = Color(DrawerSearchStyle.cursorColor(state.theme.accent))
+    LaunchedEffect(visible, state.openKeyboardOnOpen) {
+        if (AppDrawerLogic.shouldShowKeyboard(state.openKeyboardOnOpen, visible)) {
+            delay(KEYBOARD_AFTER_OPEN_MS)
+            focusRequester.requestFocus()
+            keyboard?.show()
+        } else {
+            keyboard?.hide()
+        }
+    }
+    val submitSingleMatch = {
+        AppDrawerLogic.imeLaunchTarget(state.apps.map { it.app })?.let(onLaunch)
+    }
+    TextField(
+        value = state.query,
+        onValueChange = onQueryChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .focusRequester(focusRequester),
+        singleLine = true,
+        shape = CircleShape,
+        leadingIcon = {
+            Icon(
+                painter = painterResource(R.drawable.ic_search),
+                contentDescription = "Search",
+                tint = icon
+            )
+        },
+        placeholder = { Text("Search apps", color = placeholder) },
+        keyboardOptions = KeyboardOptions(
+            capitalization = KeyboardCapitalization.Words,
+            imeAction = ImeAction.Search
+        ),
+        keyboardActions = KeyboardActions(
+            onSearch = { submitSingleMatch() },
+            onGo = { submitSingleMatch() },
+            onDone = { submitSingleMatch() }
+        ),
+        colors = TextFieldDefaults.colors(
+            focusedTextColor = text,
+            unfocusedTextColor = text,
+            cursorColor = cursor,
+            focusedContainerColor = container,
+            unfocusedContainerColor = container,
+            disabledContainerColor = container,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            disabledIndicatorColor = Color.Transparent,
+            errorIndicatorColor = Color.Transparent,
+            focusedLeadingIconColor = icon,
+            unfocusedLeadingIconColor = icon,
+            focusedPlaceholderColor = placeholder,
+            unfocusedPlaceholderColor = placeholder
+        )
+    )
+}
+
+private const val KEYBOARD_AFTER_OPEN_MS = 300L
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

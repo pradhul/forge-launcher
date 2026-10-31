@@ -16,6 +16,9 @@
         <action
             android:id="@+id/action_homeFragment_to_iconPacksFragment"
             app:destination="@id/iconPacksFragment" />
+        <action
+            android:id="@+id/action_homeFragment_to_wallpaperThemeFragment"
+            app:destination="@id/wallpaperThemeFragment" />
     </fragment>
     <fragment
         android:id="@+id/optionsFragment"
@@ -33,6 +36,10 @@
         android:id="@+id/iconPacksFragment"
         android:name="com.sduduzog.slimlauncher.ui.icons.IconPacksFragment"
         android:label="icon_packs_fragment" />
+    <fragment
+        android:id="@+id/wallpaperThemeFragment"
+        android:name="com.sduduzog.slimlauncher.ui.wallpaper.WallpaperThemeFragment"
+        android:label="wallpaper_theme_fragment" />
     <fragment
         android:id="@+id/customiseAppsFragment"
         android:name="com.sduduzog.slimlauncher.ui.options.CustomiseAppsFragment"

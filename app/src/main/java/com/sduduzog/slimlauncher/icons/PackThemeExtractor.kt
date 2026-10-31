@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.palette.graphics.Palette
+import com.sduduzog.slimlauncher.wallpaper.ThemeSourceLogic
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -58,8 +59,18 @@ class PackThemeController @Inject constructor(
     private val extractor: PackThemeExtractor
 ) {
     fun active(): PackTheme {
-        val packId = prefs.appliedPackId ?: return PackTheme.STOCK
-        val pack = extractor.ensureTheme(packId) ?: store.getPack(packId)
-        return PackThemeLogic.resolve(prefs.matchBackgroundToPack, pack?.theme)
+        val packId = prefs.appliedPackId
+        val pack = packId?.let { extractor.ensureTheme(it) ?: store.getPack(it) }
+        val source = ThemeSourceLogic.selected(
+            explicitId = prefs.themeSourceId,
+            bingEnabled = prefs.bingWallpaperEnabled,
+            wallpaperSet = prefs.wallpaperPresent
+        )
+        return ThemeSourceLogic.resolve(
+            source = source,
+            wallpaperTheme = prefs.wallpaperTheme,
+            packTheme = pack?.theme,
+            matchBackground = prefs.matchBackgroundToPack
+        )
     }
 }

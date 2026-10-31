@@ -51,6 +51,9 @@ class OptionsFragment : BaseFragment() {
             val chooseTimeFormatDialog = ChooseTimeFormatDialog.getInstance()
             chooseTimeFormatDialog.showNow(childFragmentManager, "TIME_FORMAT_CHOOSER")
         }
+        binding!!.optionsFragmentOpenKeyboard.setOnClickListener {
+            iconPreferences.openKeyboardOnDrawer = !iconPreferences.openKeyboardOnDrawer
+        }
         binding!!.optionsFragmentToggleStatusBar.setOnClickListener {
             val settings = requireContext().getSharedPreferences(
                 getString(R.string.prefs_settings),

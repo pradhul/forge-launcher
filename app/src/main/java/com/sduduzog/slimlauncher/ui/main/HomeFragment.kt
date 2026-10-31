@@ -21,6 +21,8 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
+import android.widget.PopupMenu
 import androidx.appcompat.app.AlertDialog
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +46,7 @@ import com.sduduzog.slimlauncher.models.MainViewModel
 import com.sduduzog.slimlauncher.ui.home.AppDrawerOverlay
 import com.sduduzog.slimlauncher.ui.home.AppDrawerViewModel
 import com.sduduzog.slimlauncher.ui.icons.ForgeTheme
+import com.sduduzog.slimlauncher.wallpaper.WallpaperThemeLogic
 import com.sduduzog.slimlauncher.utils.BaseFragment
 import com.sduduzog.slimlauncher.utils.OnLaunchAppListener
 import com.sduduzog.slimlauncher.data.model.App
@@ -90,10 +93,8 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         }
         viewModel.seedDefaultsIfNeeded()
         setEventListeners()
-        binding!!.homeFragmentOptions.setOnClickListener(
-            Navigation.createNavigateOnClickListener(R.id.action_homeFragment_to_optionsFragment)
-        )
-        binding!!.homeFragmentAllApps.setOnClickListener { openDrawer() }
+        binding!!.homeFragmentOverflow.setOnClickListener { showOverflowMenu(it) }
+        binding!!.homeFragmentDrawerHandle.setOnClickListener { openDrawer() }
         setupGestures()
         setupDrawer()
         observeIconRevision()
@@ -104,7 +105,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     private fun setupDrawer() {
         binding!!.homeFragmentDrawer.setContent {
             val state by drawerViewModel.ui.collectAsStateWithLifecycle()
-            ForgeTheme(theme = state.theme) {
+            ForgeTheme(theme = state.theme, translucent = true) {
                 AppDrawerOverlay(
                     visible = drawerOpen,
                     state = state,
@@ -121,6 +122,14 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                     onIconPacks = {
                         closeDrawer()
                         openIconPacks()
+                    },
+                    onWallpaper = {
+                        closeDrawer()
+                        openWallpaper()
+                    },
+                    onSettings = {
+                        closeDrawer()
+                        openSettings()
                     },
                     onClose = { closeDrawer() }
                 )
@@ -328,20 +337,25 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     }
 
     private fun showHomeMenu() {
-        AlertDialog.Builder(requireContext())
-            .setItems(
-                arrayOf(
-                    getString(R.string.options_fragment_icon_packs),
-                    getString(R.string.main_fragment_options)
-                )
-            ) { _, which ->
-                when (which) {
-                    0 -> openIconPacks()
-                    1 -> Navigation.findNavController(binding!!.root)
-                        .navigate(R.id.action_homeFragment_to_optionsFragment)
-                }
+        val anchor = binding?.homeFragmentOverflow ?: binding?.root ?: return
+        showOverflowMenu(anchor)
+    }
+
+    private fun showOverflowMenu(anchor: View) {
+        val popup = PopupMenu(requireContext(), anchor)
+        popup.menu.add(0, MENU_ICON_PACKS, 0, R.string.menu_icon_packs)
+        popup.menu.add(0, MENU_WALLPAPER, 1, R.string.menu_wallpaper_theme)
+        popup.menu.add(0, MENU_SETTINGS, 2, R.string.menu_launcher_settings)
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                MENU_ICON_PACKS -> openIconPacks()
+                MENU_WALLPAPER -> openWallpaper()
+                MENU_SETTINGS -> openSettings()
+                else -> return@setOnMenuItemClickListener false
             }
-            .show()
+            true
+        }
+        popup.show()
     }
 
     private fun applyLauncherTheme() {
@@ -349,13 +363,15 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         val root = binding?.homeFragment ?: return
         root.background = GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
-            intArrayOf(theme.background, theme.backgroundEnd)
+            intArrayOf(
+                WallpaperThemeLogic.scrim(theme.background),
+                WallpaperThemeLogic.scrim(theme.backgroundEnd, WallpaperThemeLogic.SCRIM_END_ALPHA)
+            )
         )
         binding?.homeFragmentTime?.setTextColor(theme.onBackground)
         binding?.homeFragmentDate?.setTextColor(theme.onBackground)
-        binding?.homeFragmentOptions?.setTextColor(theme.onBackground)
-        binding?.homeFragmentAllApps?.setTextColor(theme.onBackground)
         binding?.homeFragmentEmpty?.setTextColor(theme.onBackground)
+        binding?.homeFragmentOverflow?.imageTintList = ColorStateList.valueOf(theme.onBackground)
         adapter.setLabelColor(theme.onBackground)
         val accent = ColorStateList.valueOf(theme.accent)
         binding?.homeFragmentCall?.imageTintList = accent
@@ -365,6 +381,16 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     private fun openIconPacks() {
         Navigation.findNavController(binding!!.root)
             .navigate(R.id.action_homeFragment_to_iconPacksFragment)
+    }
+
+    private fun openWallpaper() {
+        Navigation.findNavController(binding!!.root)
+            .navigate(R.id.action_homeFragment_to_wallpaperThemeFragment)
+    }
+
+    private fun openSettings() {
+        Navigation.findNavController(binding!!.root)
+            .navigate(R.id.action_homeFragment_to_optionsFragment)
     }
 
     private fun openDrawer() {
@@ -377,6 +403,8 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         drawerOpen = false
         binding?.homeFragmentDrawer?.isVisible = false
         drawerViewModel.onQueryChange("")
+        val imm = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.hideSoftInputFromWindow(binding?.root?.windowToken, 0)
     }
 
     override fun onBack(): Boolean {
@@ -395,5 +423,11 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         override fun onReceive(ctx: Context?, intent: Intent?) {
             updateClock()
         }
+    }
+
+    companion object {
+        private const val MENU_ICON_PACKS = 1
+        private const val MENU_WALLPAPER = 2
+        private const val MENU_SETTINGS = 3
     }
 }

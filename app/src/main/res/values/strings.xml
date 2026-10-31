@@ -25,10 +25,17 @@
     <string name="prefs_settings_key_show_icons" translatable="false">key_show_icons</string>
     <string name="prefs_settings_key_applied_pack" translatable="false">key_applied_pack_id</string>
     <string name="prefs_settings_key_match_background" translatable="false">key_match_background_to_pack</string>
+    <string name="prefs_settings_key_theme_source" translatable="false">key_theme_source</string>
+    <string name="prefs_settings_key_bing_enabled" translatable="false">key_bing_wallpaper_enabled</string>
     <string name="choose_time_format_dialog_title">Choose Time Format</string>
     <string name="main_fragment_options">Options</string>
     <string name="home_all_apps">All apps</string>
-    <string name="home_empty_hint">Open All apps, then long-press an app to pin it here.</string>
+    <string name="home_overflow_menu">Menu</string>
+    <string name="home_open_apps_handle">Swipe up for apps</string>
+    <string name="home_empty_hint">Swipe up to open apps, then long-press an app to pin it here.</string>
+    <string name="menu_icon_packs">Icon packs</string>
+    <string name="menu_wallpaper_theme">Wallpaper &amp; theme</string>
+    <string name="menu_launcher_settings">Launcher settings</string>
     <string name="home_action_add">Add to home</string>
     <string name="home_action_remove">Remove from home</string>
     <string name="home_action_app_info">App info</string>
@@ -43,6 +50,7 @@
     <string name="options_fragment_device_settings">Device Settings</string>
     <string name="options_fragment_change_theme">Change Theme</string>
     <string name="options_fragment_choose_time_format">Choose Time Format</string>
+    <string name="options_fragment_open_keyboard">Open keyboard when drawer opens</string>
     <string name="options_fragment_customise_apps">Customise Apps</string>
     <string name="options_fragment_toggle_status_bar">Toggle Status Bar</string>
     <string name="options_fragment_hide_status_bar">Hide Status Bar</string>

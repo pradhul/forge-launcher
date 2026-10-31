@@ -66,15 +66,23 @@ import com.sduduzog.slimlauncher.icons.PackTheme
 import com.sduduzog.slimlauncher.icons.StylePreset
 
 @Composable
-fun ForgeTheme(theme: PackTheme = PackTheme.STOCK, content: @Composable () -> Unit) {
-    val background = Color(theme.background)
-    val backgroundEnd = Color(theme.backgroundEnd)
+fun ForgeTheme(
+    theme: PackTheme = PackTheme.STOCK,
+    translucent: Boolean = false,
+    content: @Composable () -> Unit
+) {
+    val bgAlpha = if (translucent) 0.60f else 1f
+    val endAlpha = if (translucent) 0.40f else 1f
+    val background = Color(theme.background).copy(alpha = bgAlpha)
+    val backgroundEnd = Color(theme.backgroundEnd).copy(alpha = endAlpha)
     val foreground = Color(theme.onBackground)
     val accent = Color(theme.accent)
     val onAccent = Color(theme.onAccent)
     val luminance =
-        (0.299f * background.red) + (0.587f * background.green) + (0.114f * background.blue)
-    val colors = remember(theme) {
+        (0.299f * Color(theme.background).red) +
+            (0.587f * Color(theme.background).green) +
+            (0.114f * Color(theme.background).blue)
+    val colors = remember(theme, translucent) {
         val scheme = if (luminance < 0.5f) {
             darkColorScheme(
                 background = background,

@@ -35,4 +35,10 @@ object AppDrawerLogic {
     fun distinctLaunchers(apps: List<App>): List<App> {
         return apps.distinctBy { itemKey(it) }
     }
+
+    fun imeLaunchTarget(apps: List<App>): App? = apps.singleOrNull()
+
+    fun shouldShowKeyboard(openKeyboardOnDrawer: Boolean, drawerVisible: Boolean): Boolean {
+        return openKeyboardOnDrawer && drawerVisible
+    }
 }
