@@ -152,7 +152,7 @@ class WallpaperSnapshotter @Inject constructor(
             val radius = DrawerBlurLogic.sampleBlurRadius(percent)
             if (radius <= 0) return small
             // Software Canvas ignores RenderEffect; BoxBlur is the bitmap path.
-            // Live wallpaper blur uses FLAG_BLUR_BEHIND on the drawer dialog.
+            // Live wallpaper blur uses FLAG_BLUR_BEHIND on the home activity.
             return boxBlur(small, radius)
         }
 

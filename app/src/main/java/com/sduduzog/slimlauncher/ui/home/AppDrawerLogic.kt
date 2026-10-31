@@ -39,10 +39,6 @@ object AppDrawerLogic {
     fun imeLaunchTarget(apps: List<App>): App? = apps.singleOrNull()
 
     fun shouldShowKeyboard(openKeyboardOnDrawer: Boolean, drawerVisible: Boolean): Boolean {
-        return DrawerWindowLogic.shouldRequestIme(
-            settingOn = openKeyboardOnDrawer,
-            drawerVisible = drawerVisible,
-            windowHasFocus = true
-        )
+        return openKeyboardOnDrawer && drawerVisible
     }
 }

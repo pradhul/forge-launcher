@@ -44,7 +44,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -59,8 +58,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
+import kotlinx.coroutines.delay
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
@@ -322,7 +321,6 @@ private fun DrawerSearchField(
     onLaunch: (App) -> Unit
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
-    val view = LocalView.current
     val focusRequester = remember { FocusRequester() }
     val onBackground = state.theme.onBackground
     val container = Color(DrawerSearchStyle.containerColor(state.theme.background, state.theme.accent))
@@ -332,36 +330,23 @@ private fun DrawerSearchField(
     val cursor = Color(DrawerSearchStyle.cursorColor(state.theme.accent))
     LaunchedEffect(visible, state.openKeyboardOnOpen) {
         if (DrawerWindowLogic.shouldHideIme(visible)) {
-            DrawerIme.hide(view)
             keyboard?.hide()
             return@LaunchedEffect
         }
         if (!AppDrawerLogic.shouldShowKeyboard(state.openKeyboardOnOpen, visible)) {
             return@LaunchedEffect
         }
-        var frames = 0
-        while (
-            visible &&
-            !DrawerWindowLogic.shouldRequestIme(
-                settingOn = true,
+        delay(DrawerMotionLogic.ANIM_MS.toLong())
+        if (!DrawerWindowLogic.shouldRequestIme(
+                settingOn = state.openKeyboardOnOpen,
                 drawerVisible = visible,
-                windowHasFocus = view.hasWindowFocus()
-            ) &&
-            frames < 45
-        ) {
-            withFrameNanos { }
-            frames++
-        }
-        if (!DrawerWindowLogic.shouldRequestIme(true, visible, view.hasWindowFocus())) {
-            android.util.Log.i(
-                DrawerIme.TAG,
-                "ime skip focused=${view.hasWindowFocus()} visible=$visible frames=$frames"
+                animationSettled = true
             )
+        ) {
             return@LaunchedEffect
         }
-        withFrameNanos { }
         runCatching { focusRequester.requestFocus() }
-        DrawerIme.show(view)
+        keyboard?.show()
     }
     val submitSingleMatch = {
         AppDrawerLogic.imeLaunchTarget(state.apps.map { it.app })?.let(onLaunch)

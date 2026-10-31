@@ -13,6 +13,8 @@ class LaunchStore(private val prefs: SharedPreferences) {
 
     private val _revision = MutableStateFlow(0)
     val revision: StateFlow<Int> = _revision.asStateFlow()
+    @Volatile
+    private var cached: List<LaunchRecord>? = null
 
     fun record(key: String, nowMillis: Long = System.currentTimeMillis()) {
         val next = LaunchRanker.record(key, records().firstOrNull { it.key == key }, nowMillis)
@@ -23,6 +25,13 @@ class LaunchStore(private val prefs: SharedPreferences) {
     }
 
     fun records(): List<LaunchRecord> {
+        cached?.let { return it }
+        val loaded = loadFromPrefs()
+        cached = loaded
+        return loaded
+    }
+
+    private fun loadFromPrefs(): List<LaunchRecord> {
         val raw = prefs.getString(KEY_LAUNCHES, null) ?: return emptyList()
         return try {
             val array = JSONArray(raw)
@@ -57,6 +66,8 @@ class LaunchStore(private val prefs: SharedPreferences) {
                     .put("lastLaunchMillis", record.lastLaunchMillis)
             )
         }
+        val snapshot = records.toList()
+        cached = snapshot
         prefs.edit { putString(KEY_LAUNCHES, array.toString()) }
     }
 

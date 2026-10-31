@@ -13,6 +13,7 @@ import android.widget.TextView
 import androidx.navigation.Navigation
 import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.databinding.OptionsFragmentBinding
+import com.sduduzog.slimlauncher.diag.AboutDebugLog
 import com.sduduzog.slimlauncher.icons.IconPreferences
 import com.sduduzog.slimlauncher.icons.PackThemeController
 import com.sduduzog.slimlauncher.utils.BaseFragment
@@ -61,6 +62,9 @@ class OptionsFragment : BaseFragment() {
                 R.id.action_optionsFragment_to_customiseAppsFragment
             )
         )
+        binding!!.optionsFragmentAbout.setOnClickListener {
+            AboutDebugLog.show(this)
+        }
         bindFadeControls()
         syncToggles()
         return binding?.root

@@ -132,6 +132,7 @@ class AppDrawerViewModel @Inject constructor(
             prefs.chrome.collect { refreshBackdrop(it.drawerBlurPercent) }
         }
         refreshInstalled()
+        refreshBackdrop()
     }
 
     override fun onCleared() {

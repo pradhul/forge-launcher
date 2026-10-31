@@ -1,25 +1,25 @@
 package com.sduduzog.slimlauncher.ui.home
 
+import android.view.View
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [31])
 class DrawerWindowLogicTest {
 
     @Test
-    fun imeWaitsForDialogWindowFocus() {
-        assertThat(DrawerWindowLogic.shouldRequestIme(true, true, windowHasFocus = false))
-            .isFalse()
-        assertThat(DrawerWindowLogic.shouldRequestIme(true, true, windowHasFocus = true))
-            .isTrue()
-        assertThat(DrawerWindowLogic.shouldRequestIme(true, false, windowHasFocus = true))
-            .isFalse()
-        assertThat(DrawerWindowLogic.shouldRequestIme(false, true, windowHasFocus = true))
-            .isFalse()
+    fun imeWaitsForOpenAnimationNotWindowFocus() {
+        assertThat(
+            DrawerWindowLogic.shouldRequestIme(true, true, animationSettled = false)
+        ).isFalse()
+        assertThat(
+            DrawerWindowLogic.shouldRequestIme(true, true, animationSettled = true)
+        ).isTrue()
+        assertThat(
+            DrawerWindowLogic.shouldRequestIme(true, false, animationSettled = true)
+        ).isFalse()
+        assertThat(
+            DrawerWindowLogic.shouldRequestIme(false, true, animationSettled = true)
+        ).isFalse()
     }
 
     @Test
@@ -29,52 +29,33 @@ class DrawerWindowLogicTest {
     }
 
     @Test
-    fun keyboardOnOpenUsesAlwaysVisibleAdjustResize() {
-        val mode = DrawerWindowLogic.softInputMode(keyboardOnOpen = true)
-        assertThat(mode and DrawerWindowLogic.SOFT_INPUT_MASK_STATE)
-            .isEqualTo(DrawerWindowLogic.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
-        assertThat(mode and DrawerWindowLogic.SOFT_INPUT_MASK_ADJUST)
-            .isEqualTo(DrawerWindowLogic.SOFT_INPUT_ADJUST_RESIZE)
-        val hidden = DrawerWindowLogic.softInputMode(keyboardOnOpen = false)
-        assertThat(hidden and DrawerWindowLogic.SOFT_INPUT_MASK_STATE)
-            .isEqualTo(DrawerWindowLogic.SOFT_INPUT_STATE_HIDDEN)
+    fun openPathRendersFromCache() {
+        assertThat(DrawerWindowLogic.shouldRefreshInstalledOnOpen()).isFalse()
+        assertThat(DrawerWindowLogic.shouldRefreshBackdropOnOpen()).isFalse()
     }
 
     @Test
-    fun prepareClearsImeAndTouchBlockingFlags() {
-        val incoming = DrawerWindowLogic.FLAG_ALT_FOCUSABLE_IM or
-            DrawerWindowLogic.FLAG_NOT_FOCUSABLE or
-            DrawerWindowLogic.FLAG_NOT_TOUCHABLE or
-            DrawerWindowLogic.FLAG_LAYOUT_NO_LIMITS or
-            DrawerWindowLogic.FLAG_DIM_BEHIND
-        val prepared = DrawerWindowLogic.flagsAfterPrepare(incoming)
-        assertThat(prepared and DrawerWindowLogic.BLOCKING_FLAGS).isEqualTo(0)
-        assertThat(prepared and DrawerWindowLogic.FLAG_LAYOUT_IN_SCREEN)
-            .isEqualTo(DrawerWindowLogic.FLAG_LAYOUT_IN_SCREEN)
-        assertThat(DrawerWindowLogic.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
-            .isEqualTo(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
-        assertThat(DrawerWindowLogic.FLAG_ALT_FOCUSABLE_IM)
-            .isEqualTo(android.view.WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
+    fun overlayIsGoneWhenClosedAndVisibleWhileOpenOrClosing() {
+        assertThat(DrawerWindowLogic.overlayViewVisible(true, false)).isTrue()
+        assertThat(DrawerWindowLogic.overlayViewVisible(false, true)).isTrue()
+        assertThat(DrawerWindowLogic.overlayViewVisible(false, false)).isFalse()
+        assertThat(DrawerWindowLogic.overlayVisibility(true)).isEqualTo(View.VISIBLE)
+        assertThat(DrawerWindowLogic.overlayVisibility(false)).isEqualTo(View.GONE)
     }
 
     @Test
-    fun hideWithoutDismissRequiresShowWhenDecorGone() {
-        assertThat(
-            DrawerWindowLogic.shouldCallShow(isShowing = true, decorVisible = false)
-        ).isTrue()
-        assertThat(
-            DrawerWindowLogic.shouldCallShow(isShowing = true, decorVisible = true)
-        ).isFalse()
-        assertThat(
-            DrawerWindowLogic.shouldCallShow(isShowing = false, decorVisible = false)
-        ).isTrue()
+    fun homeChromeHidesWhileDrawerOpen() {
+        assertThat(DrawerWindowLogic.shouldHideHomeChrome(true)).isTrue()
+        assertThat(DrawerWindowLogic.shouldHideHomeChrome(false)).isFalse()
+        assertThat(DrawerWindowLogic.homeChromeVisibility(true)).isEqualTo(View.VISIBLE)
+        assertThat(DrawerWindowLogic.homeChromeVisibility(false)).isEqualTo(View.INVISIBLE)
     }
 
     @Test
-    fun windowIsDismissedOnlyAfterCloseAnimation() {
-        assertThat(DrawerWindowLogic.shouldDismissAfterClose(true, true)).isFalse()
-        assertThat(DrawerWindowLogic.shouldDismissAfterClose(false, false)).isFalse()
-        assertThat(DrawerWindowLogic.shouldDismissAfterClose(false, true)).isTrue()
+    fun activityBlurOnlyWhileOpenAndSliderAboveZero() {
+        assertThat(DrawerWindowLogic.shouldApplyActivityBlur(true, 50)).isTrue()
+        assertThat(DrawerWindowLogic.shouldApplyActivityBlur(true, 0)).isFalse()
+        assertThat(DrawerWindowLogic.shouldApplyActivityBlur(false, 80)).isFalse()
     }
 
     @Test

@@ -212,5 +212,34 @@
                 android:textAppearance="@style/TextAppearance.AppCompat"
                 android:textSize="12sp" />
         </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/options_fragment_about"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:orientation="vertical"
+            android:paddingTop="16dp"
+            android:paddingBottom="16dp">
+
+            <TextView
+                android:id="@+id/options_fragment_about_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/options_fragment_about_slim"
+                android:textAppearance="@style/TextAppearance.AppCompat"
+                android:textSize="@dimen/_20ssp" />
+
+            <TextView
+                android:id="@+id/options_fragment_about_desc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/options_fragment_about_desc"
+                android:textAppearance="@style/TextAppearance.AppCompat"
+                android:textSize="12sp" />
+        </LinearLayout>
     </LinearLayout>
 </ScrollView>

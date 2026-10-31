@@ -1,6 +1,5 @@
 package com.sduduzog.slimlauncher.ui.main
 
-import android.app.Dialog
 import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
 import android.content.ActivityNotFoundException
@@ -14,7 +13,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.UserManager
-import android.view.KeyEvent
 import android.view.WindowManager
 import android.provider.AlarmClock
 import android.provider.CalendarContract
@@ -25,6 +23,7 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import com.sduduzog.slimlauncher.diag.AboutDebugLog
 import com.sduduzog.slimlauncher.ui.home.DrawerIme
 import com.sduduzog.slimlauncher.ui.home.DrawerWindowLogic
 import android.widget.PopupWindow
@@ -36,7 +35,6 @@ import androidx.appcompat.app.AlertDialog
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.ContextCompat
 import androidx.core.view.GestureDetectorCompat
@@ -44,12 +42,9 @@ import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.setViewTreeLifecycleOwner
-import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.Navigation
-import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.adapters.HomeAdapter
 import com.sduduzog.slimlauncher.databinding.HomeFragmentBinding
@@ -84,7 +79,6 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     private lateinit var adapter: HomeAdapter
     private var drawerOpen by mutableStateOf(false)
     private var homeApps: List<HomeApp> = emptyList()
-    private var drawerDialog: Dialog? = null
     private var closeDrawerAction: Runnable? = null
 
     @Inject
@@ -113,95 +107,45 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         viewModel.apps.observe(viewLifecycleOwner) { list ->
             homeApps = list.orEmpty()
             adapter.setItems(homeApps)
-            binding!!.homeFragmentEmpty.isVisible = homeApps.isEmpty()
+            if (!drawerOpen) {
+                binding!!.homeFragmentEmpty.isVisible = homeApps.isEmpty()
+            }
         }
         viewModel.seedDefaultsIfNeeded()
         setEventListeners()
         binding!!.homeFragmentOverflow.setOnClickListener { showOverflowMenu(it) }
         binding!!.homeFragmentDrawerHandle.setOnClickListener { openDrawer() }
+        setupDrawerOverlay()
         setupGestures()
         observeIconRevision()
         applyLauncherTheme()
         return binding!!.root
     }
 
-    private fun ensureDrawerDialog(): Dialog {
-        drawerDialog?.let { return it }
-        val composeView = ComposeView(requireContext()).apply {
-            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
-            setViewTreeLifecycleOwner(viewLifecycleOwner)
-            setViewTreeViewModelStoreOwner(this@HomeFragment)
-            setViewTreeSavedStateRegistryOwner(this@HomeFragment)
-            setContent {
-                val state by drawerViewModel.ui.collectAsStateWithLifecycle()
-                ForgeTheme(theme = state.theme, drawerScrim = true) {
-                    AppDrawerOverlay(
-                        visible = drawerOpen,
-                        state = state,
-                        onQueryChange = drawerViewModel::onQueryChange,
-                        onLaunch = { app ->
-                            drawerViewModel.recordLaunch(app)
-                            launchInstalled(app)
-                            closeDrawer()
-                        },
-                        onPin = { viewModel.pin(it) },
-                        onUnpin = { viewModel.unpin(it.packageName, it.userSerial) },
-                        onAppInfo = ::openAppInfo,
-                        onRegenerate = drawerViewModel::regenerate,
-                        onClose = { closeDrawer() }
-                    )
-                }
-            }
-        }
-        val dialog = Dialog(requireContext(), R.style.ForgeDrawerDialog)
-        dialog.setContentView(
-            composeView,
-            ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-        )
-        dialog.setCanceledOnTouchOutside(false)
-        dialog.setOnCancelListener { closeDrawer() }
-        dialog.setOnKeyListener { _, keyCode, event ->
-            if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
-                closeDrawer()
-                true
-            } else {
-                false
-            }
-        }
-        dialog.setOnShowListener {
-            val window = dialog.window
-            window?.let {
-                DrawerBlurWindow.prepareTranslucent(it)
-                com.sduduzog.slimlauncher.ui.home.DrawerIme.applyWindow(
-                    it,
-                    iconPreferences.openKeyboardOnDrawer
+    private fun setupDrawerOverlay() {
+        val overlay = binding!!.homeFragmentDrawer
+        overlay.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+        overlay.setContent {
+            val state by drawerViewModel.ui.collectAsStateWithLifecycle()
+            ForgeTheme(theme = state.theme, drawerScrim = true) {
+                AppDrawerOverlay(
+                    visible = drawerOpen,
+                    state = state,
+                    onQueryChange = drawerViewModel::onQueryChange,
+                    onLaunch = { app ->
+                        drawerViewModel.recordLaunch(app)
+                        launchInstalled(app)
+                        closeDrawer()
+                    },
+                    onPin = { viewModel.pin(it) },
+                    onUnpin = { viewModel.unpin(it.packageName, it.userSerial) },
+                    onAppInfo = ::openAppInfo,
+                    onRegenerate = drawerViewModel::regenerate,
+                    onClose = { closeDrawer() }
                 )
             }
-            window?.decorView?.visibility = View.VISIBLE
-            android.util.Log.i(
-                com.sduduzog.slimlauncher.ui.home.DrawerIme.TAG,
-                "show focused=${window?.decorView?.hasWindowFocus()} " +
-                    "decorVisible=${window?.decorView?.visibility == View.VISIBLE}"
-            )
         }
-        dialog.window?.decorView?.viewTreeObserver?.addOnWindowFocusChangeListener { hasFocus ->
-            android.util.Log.i(
-                com.sduduzog.slimlauncher.ui.home.DrawerIme.TAG,
-                "windowFocus=$hasFocus touchable=${dialog.window?.decorView?.isShown}"
-            )
-        }
-        dialog.window?.let {
-            DrawerBlurWindow.prepareTranslucent(it)
-            com.sduduzog.slimlauncher.ui.home.DrawerIme.applyWindow(
-                it,
-                iconPreferences.openKeyboardOnDrawer
-            )
-        }
-        drawerDialog = dialog
-        return dialog
+        overlay.visibility = DrawerWindowLogic.overlayVisibility(false)
     }
 
     private fun setupGestures() {
@@ -258,7 +202,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                 viewModel.iconRevision.collect {
                     applyLauncherTheme()
                     adapter.notifyDataSetChanged()
-                    drawerViewModel.refreshInstalled()
+                    if (!drawerOpen) drawerViewModel.refreshInstalled()
                 }
             }
         }
@@ -297,8 +241,10 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         updateClock()
         applyLauncherTheme()
         wallpaperThemeMonitor.onHostResume()
-        drawerViewModel.refreshBackdrop()
-        drawerViewModel.refreshInstalled()
+        if (!drawerOpen) {
+            drawerViewModel.refreshBackdrop()
+            drawerViewModel.refreshInstalled()
+        }
         if (::adapter.isInitialized) {
             adapter.notifyDataSetChanged()
         }
@@ -322,9 +268,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
 
     override fun onDestroyView() {
         cancelCloseDrawer()
-        DrawerIme.hide(drawerDialog?.window?.decorView)
-        drawerDialog?.dismiss()
-        drawerDialog = null
+        DrawerIme.hide(binding?.homeFragmentDrawer)
         super.onDestroyView()
         _binding = null
     }
@@ -464,7 +408,8 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                 MENU_SETTINGS,
                 R.string.menu_launcher_settings,
                 R.string.menu_launcher_settings_desc
-            )
+            ),
+            OverflowItem(MENU_ABOUT, R.string.menu_about, R.string.menu_about_desc)
         )
         items.forEach { item ->
             val row = layoutInflater.inflate(R.layout.overflow_menu_item, list, false)
@@ -481,6 +426,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                     MENU_ICON_PACKS -> openIconPacks()
                     MENU_WALLPAPER -> openWallpaper()
                     MENU_SETTINGS -> openSettings()
+                    MENU_ABOUT -> AboutDebugLog.show(this)
                 }
             }
             list.addView(row)
@@ -539,45 +485,32 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
 
     private fun openDrawer() {
         cancelCloseDrawer()
-        drawerViewModel.refreshBackdrop()
-        val dialog = ensureDrawerDialog()
-        val decor = dialog.window?.decorView
-        val decorVisible = decor?.visibility == View.VISIBLE
-        if (DrawerWindowLogic.shouldCallShow(dialog.isShowing, decorVisible)) {
-            decor?.visibility = View.VISIBLE
-            dialog.show()
-        } else {
-            decor?.visibility = View.VISIBLE
-        }
-        dialog.window?.let { window ->
-            DrawerBlurWindow.prepareTranslucent(window)
-            DrawerIme.applyWindow(window, iconPreferences.openKeyboardOnDrawer)
-        }
+        val overlay = binding?.homeFragmentDrawer ?: return
+        overlay.visibility = DrawerWindowLogic.overlayVisibility(true)
+        setHomeChromeVisible(false)
         drawerOpen = true
         android.util.Log.i(
             DrawerIme.TAG,
-            "open showing=${dialog.isShowing} decorVisible=${dialog.window?.decorView?.visibility == View.VISIBLE} " +
-                "focused=${dialog.window?.decorView?.hasWindowFocus()} keyboard=${iconPreferences.openKeyboardOnDrawer}"
+            "open overlay cached keyboard=${iconPreferences.openKeyboardOnDrawer}"
         )
         syncWindowBlur()
-        drawerViewModel.refreshInstalled()
     }
 
     private fun closeDrawer() {
-        if (!drawerOpen && drawerDialog?.isShowing != true) return
+        if (!drawerOpen) return
         drawerOpen = false
         syncWindowBlur()
         swallowOverflowClicks()
         drawerViewModel.onQueryChange("")
-        val dialogView = drawerDialog?.window?.decorView
-        DrawerIme.hide(dialogView)
-        android.util.Log.i(DrawerIme.TAG, "close showing=${drawerDialog?.isShowing}")
-        val host = dialogView ?: binding?.root ?: return
+        val overlay = binding?.homeFragmentDrawer
+        DrawerIme.hide(overlay)
+        android.util.Log.i(DrawerIme.TAG, "close overlay")
+        val host = overlay ?: binding?.root ?: return
         cancelCloseDrawer()
         val action = Runnable {
-            if (DrawerWindowLogic.shouldDismissAfterClose(drawerOpen, true)) {
-                android.util.Log.i(DrawerIme.TAG, "dismiss")
-                drawerDialog?.dismiss()
+            if (!DrawerWindowLogic.overlayViewVisible(drawerOpen, closeAnimationPending = false)) {
+                overlay?.visibility = DrawerWindowLogic.overlayVisibility(false)
+                setHomeChromeVisible(true)
             }
         }
         closeDrawerAction = action
@@ -586,9 +519,28 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
 
     private fun cancelCloseDrawer() {
         val action = closeDrawerAction ?: return
-        val host = drawerDialog?.window?.decorView ?: binding?.root
+        val host = binding?.homeFragmentDrawer ?: binding?.root
         host?.removeCallbacks(action)
         closeDrawerAction = null
+    }
+
+    private fun setHomeChromeVisible(visible: Boolean) {
+        val views = binding ?: return
+        val vis = DrawerWindowLogic.homeChromeVisibility(visible)
+        views.homeFragmentTopScrim.visibility = vis
+        views.homeFragmentBottomScrim.visibility = vis
+        views.homeFragmentTime.visibility = vis
+        views.homeFragmentDate.visibility = vis
+        views.homeFragmentList.visibility = vis
+        views.homeFragmentCall.visibility = vis
+        views.homeFragmentDrawerHandle.visibility = vis
+        views.homeFragmentCamera.visibility = vis
+        views.homeFragmentOverflow.visibility = vis
+        views.homeFragmentEmpty.visibility = if (visible && homeApps.isEmpty()) {
+            View.VISIBLE
+        } else {
+            View.GONE
+        }
     }
 
     private fun swallowOverflowClicks() {
@@ -602,8 +554,16 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         val enabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
             wm?.isCrossWindowBlurEnabled == true
         drawerViewModel.setCrossWindowBlur(enabled)
-        val window = drawerDialog?.window ?: return
-        val percent = if (drawerOpen) iconPreferences.drawerBlurPercent else 0
+        val window = activity?.window ?: return
+        val percent = if (DrawerWindowLogic.shouldApplyActivityBlur(
+                drawerOpen,
+                iconPreferences.drawerBlurPercent
+            )
+        ) {
+            iconPreferences.drawerBlurPercent
+        } else {
+            0
+        }
         DrawerBlurWindow.apply(
             window = window,
             percent = percent,
@@ -647,5 +607,6 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         private const val MENU_ICON_PACKS = 1
         private const val MENU_WALLPAPER = 2
         private const val MENU_SETTINGS = 3
+        private const val MENU_ABOUT = 4
     }
 }

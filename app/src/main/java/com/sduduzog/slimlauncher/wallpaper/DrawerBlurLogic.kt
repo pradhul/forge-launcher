@@ -3,16 +3,13 @@ package com.sduduzog.slimlauncher.wallpaper
 import kotlin.math.roundToInt
 
 /**
- * Drawer blur is a wallpaper backdrop, not Modifier.blur.
+ * Drawer blur without a second window.
  *
- * Modifier.blur() blurs the composable's own pixels. Over a
- * FLAG_SHOW_WALLPAPER window that layer often composites to nothing
- * (the v10 Pixel 10a bug), and it never blurs the wallpaper behind.
- *
- * Reliable paths:
- * 1. A *separate* translucent dialog with FLAG_BLUR_BEHIND (live wallpaper).
- * 2. Cached Bing/setWallpaper bitmap, BoxBlur / RenderEffect (API 31+).
- * 3. WallpaperColors-derived scrim when the bitmap is unreadable.
+ * Paths, in order:
+ * 1. FLAG_BLUR_BEHIND on the home activity while the drawer is open
+ *    (API 31+, isCrossWindowBlurEnabled). Home chrome is hidden.
+ * 2. Cached Bing / Forge-set wallpaper bitmap, BoxBlur / Modifier.blur.
+ * 3. WallpaperColors / dynamic-palette tinted frosted scrim.
  */
 object DrawerBlurLogic {
     const val DEFAULT_BLUR_PERCENT = 50
