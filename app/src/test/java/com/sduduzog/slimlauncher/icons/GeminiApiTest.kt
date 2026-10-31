@@ -76,4 +76,40 @@ class GeminiApiTest {
         assertThat(GeminiApi.isFatalStatus(429)).isFalse()
         assertThat(GeminiApi.isFatalStatus(500)).isFalse()
     }
+
+    @Test
+    fun detectsFreeTierZeroImageQuota() {
+        val body = """
+            {"error":{"code":429,"status":"RESOURCE_EXHAUSTED",
+              "message":"Quota exceeded for metric generate_content_free_tier_requests, limit: 0"}}
+        """.trimIndent()
+        assertThat(GeminiApi.isFreeTierNoImageQuota(body)).isTrue()
+        assertThat(GeminiApi.FREE_TIER_IMAGE_QUOTA_MESSAGE)
+            .contains("On-device styles")
+    }
+
+    @Test
+    fun paidRateLimitIsNotFreeTier() {
+        val body = """{"error":{"code":429,"status":"RESOURCE_EXHAUSTED","message":"Resource exhausted"}}"""
+        assertThat(GeminiApi.isFreeTierNoImageQuota(body)).isFalse()
+    }
+
+    @Test
+    fun parseRetryDelayFromDetails() {
+        val body = """
+            {"error":{"details":[
+              {"@type":"type.googleapis.com/google.rpc.RetryInfo","retryDelay":"8s"}
+            ]}}
+        """.trimIndent()
+        assertThat(GeminiApi.parseRetryDelayMs(body)).isEqualTo(8000L)
+        assertThat(GeminiApi.parseDurationMs("250ms")).isEqualTo(250L)
+    }
+
+    @Test
+    fun parseRetryDelaySnakeCaseAndFractionalSeconds() {
+        val body = """
+            {"error":{"details":[{"retry_delay":"1.5s"}]}}
+        """.trimIndent()
+        assertThat(GeminiApi.parseRetryDelayMs(body)).isEqualTo(1500L)
+    }
 }

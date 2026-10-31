@@ -21,3 +21,6 @@
 
 #-keepnames class androidx.navigation.fragment.NavHostFragment
 #-keep class * extends androidx.fragment.app.Fragment{}
+
+-keep class org.tensorflow.lite.** { *; }
+-keep class org.tensorflow.lite.gpu.** { *; }

@@ -41,9 +41,17 @@ class GeminiIconClient(
                 val responseBody = response.body?.string().orEmpty()
                 when {
                     response.isSuccessful -> return GeminiApi.parseImageBytes(responseBody)
+                    response.code == 429 && GeminiApi.isFreeTierNoImageQuota(responseBody) -> {
+                        throw GeminiException(
+                            GeminiApi.FREE_TIER_IMAGE_QUOTA_MESSAGE,
+                            isFatal = true
+                        )
+                    }
                     response.code == 429 && attempt < MAX_RATE_LIMIT_RETRIES -> {
                         val retryAfterSeconds = response.header("Retry-After")?.toLongOrNull()
-                        val waitMs = retryAfterSeconds?.times(1000L) ?: backoffMs
+                        val waitMs = GeminiApi.parseRetryDelayMs(responseBody)
+                            ?: retryAfterSeconds?.times(1000L)
+                            ?: backoffMs
                         delay(waitMs)
                         backoffMs = (backoffMs * 2).coerceAtMost(MAX_BACKOFF_MS)
                         attempt++

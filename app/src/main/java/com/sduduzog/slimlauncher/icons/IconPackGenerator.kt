@@ -1,13 +1,15 @@
 package com.sduduzog.slimlauncher.icons
 
+import android.graphics.BitmapFactory
+import android.graphics.drawable.Drawable
 import com.sduduzog.slimlauncher.data.model.App
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,6 +37,7 @@ class IconPackGenerator @Inject constructor(
     private val store: IconPackStore,
     private val client: GeminiIconClient,
     private val iconResolver: AppIconResolver,
+    private val stylizer: OnDeviceIconStylizer,
     private val prefs: IconPreferences
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -84,26 +87,29 @@ class IconPackGenerator @Inject constructor(
             running = true,
             total = apps.size
         )
+        val onDevice = pack.generatorMode == GenerationMode.ON_DEVICE
+        val styleContext = if (onDevice) prepareOnDeviceStyle(pack) else null
         try {
             apps.forEachIndexed { index, app ->
                 kotlinx.coroutines.currentCoroutineContext().ensureActive()
                 _progress.update {
-                    it.copy(
-                        currentIndex = index,
-                        currentAppName = app.appName
-                    )
+                    it.copy(currentIndex = index, currentAppName = app.appName)
                 }
                 try {
-                    val reference = iconResolver.stockIconPng(
-                        app.packageName,
-                        app.activityName,
-                        app.userSerial
-                    )
-                    val generated = client.generateIcon(app.appName, pack.stylePrompt, reference)
+                    val bytes = if (onDevice && styleContext != null) {
+                        generateOnDevice(app, pack, styleContext)
+                    } else {
+                        val reference = iconResolver.stockIconPng(
+                            app.packageName,
+                            app.activityName,
+                            app.userSerial
+                        )
+                        client.generateIcon(app.appName, pack.stylePrompt, reference)
+                    }
                     store.saveIcon(
                         pack.id,
                         app.packageName,
-                        ImageUtils.downscaleToSquarePng(generated)
+                        if (onDevice) bytes else ImageUtils.downscaleToSquarePng(bytes)
                     )
                     _progress.update { it.copy(succeeded = it.succeeded + 1, lastError = null) }
                 } catch (cancelled: CancellationException) {
@@ -121,7 +127,9 @@ class IconPackGenerator @Inject constructor(
                         )
                     }
                 }
-                delay(REQUEST_PACING_MS)
+                if (!onDevice) {
+                    delay(GEMINI_PACING_MS)
+                }
             }
         } catch (_: CancellationException) {
             _progress.update {
@@ -138,7 +146,55 @@ class IconPackGenerator @Inject constructor(
         }
     }
 
+    private fun prepareOnDeviceStyle(pack: IconPack): OnDeviceStyleContext {
+        val preset = when {
+            pack.stylePresetId == StylePreset.CUSTOM_ID -> StylePreset.CUSTOM
+            else -> StylePreset.byId(pack.stylePresetId) ?: StylePreset.ALL.first()
+        }
+        val styleBitmap = if (preset.id == StylePreset.CUSTOM_ID) {
+            val file = store.getCustomStyleFile(pack.id)
+            if (file != null) {
+                BitmapFactory.decodeFile(file.absolutePath) ?: stylizer.loadPresetStyle(StylePreset.ALL.first())
+            } else {
+                stylizer.loadPresetStyle(StylePreset.ALL.first())
+            }
+        } else {
+            stylizer.loadPresetStyle(preset)
+        }
+        val bottleneck = stylizer.predictStyleBottleneck(styleBitmap)
+        return OnDeviceStyleContext(preset, styleBitmap, bottleneck)
+    }
+
+    private fun generateOnDevice(
+        app: App,
+        pack: IconPack,
+        style: OnDeviceStyleContext
+    ): ByteArray {
+        val drawable = stockDrawable(app)
+            ?: throw IllegalStateException("No icon for ${app.packageName}")
+        return if (style.bottleneck != null) {
+            stylizer.stylizeWithBottleneck(
+                drawable,
+                style.bottleneck,
+                style.preset,
+                pack.styleStrength
+            )
+        } else {
+            stylizer.stylizeIcon(drawable, style.styleBitmap, style.preset, pack.styleStrength)
+        }
+    }
+
+    private fun stockDrawable(app: App): Drawable? {
+        return iconResolver.loadStockIcon(app.packageName, app.activityName, app.userSerial)
+    }
+
+    private data class OnDeviceStyleContext(
+        val preset: StylePreset,
+        val styleBitmap: android.graphics.Bitmap,
+        val bottleneck: FloatArray?
+    )
+
     companion object {
-        private const val REQUEST_PACING_MS = 400L
+        private const val GEMINI_PACING_MS = 1_200L
     }
 }

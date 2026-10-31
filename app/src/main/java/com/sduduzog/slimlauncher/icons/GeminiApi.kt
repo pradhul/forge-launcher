@@ -101,7 +101,47 @@ object GeminiApi {
         return sanitizeError(message)
     }
 
+    const val FREE_TIER_IMAGE_QUOTA_MESSAGE =
+        "Your key is on the free tier, which has no image quota. Enable billing in AI Studio or use On-device styles."
+
     fun isFatalStatus(httpCode: Int): Boolean = httpCode == 400 || httpCode == 401 || httpCode == 403
+
+    fun isFreeTierNoImageQuota(responseJson: String, message: String = ""): Boolean {
+        val haystack = "$responseJson $message".lowercase()
+        val mentionsFree = haystack.contains("free_tier") ||
+            haystack.contains("freetier") ||
+            haystack.contains("free tier") ||
+            haystack.contains("generate_content_free_tier")
+        val mentionsZeroLimit = haystack.contains("limit: 0") ||
+            haystack.contains("limit:0") ||
+            haystack.contains("limit = 0") ||
+            haystack.contains("\"limit\": 0") ||
+            haystack.contains("\"limit\":0")
+        return mentionsFree && (mentionsZeroLimit || haystack.contains("quota") || haystack.contains("resource_exhausted"))
+    }
+
+    fun parseRetryDelayMs(responseJson: String): Long? {
+        return try {
+            val root = JSONObject(responseJson)
+            val details = root.optJSONObject("error")?.optJSONArray("details") ?: return null
+            for (index in 0 until details.length()) {
+                val item = details.optJSONObject(index) ?: continue
+                val delay = item.optString("retryDelay").ifBlank { item.optString("retry_delay") }
+                parseDurationMs(delay)?.let { return it }
+            }
+            null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun parseDurationMs(raw: String): Long? {
+        val match = Regex("""^\s*(\d+(?:\.\d+)?)(s|ms)?\s*$""").find(raw) ?: return null
+        val value = match.groupValues[1].toDoubleOrNull() ?: return null
+        val unit = match.groupValues[2]
+        val ms = if (unit == "ms") value else value * 1000.0
+        return ms.toLong().takeIf { it > 0 }
+    }
 
     private fun isFatalError(root: JSONObject): Boolean {
         val status = root.optJSONObject("error")?.optString("status").orEmpty()

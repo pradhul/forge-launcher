@@ -98,6 +98,43 @@ class IconPackStoreTest {
     }
 
     @Test
+    fun createPackStoresOnDeviceMetadata() {
+        val store = store()
+        val spec = PackCreateSpec(
+            name = "Neon",
+            stylePrompt = "Neon cyberpunk",
+            generatorMode = GenerationMode.ON_DEVICE,
+            stylePresetId = "neon",
+            styleStrength = 0.8f
+        )
+        val pack = store.createPack(spec, createdAtMillis = 9)
+        val loaded = store.getPack(pack.id)!!
+        assertThat(loaded.generatorMode).isEqualTo(GenerationMode.ON_DEVICE)
+        assertThat(loaded.stylePresetId).isEqualTo("neon")
+        assertThat(loaded.styleStrength).isWithin(0.001f).of(0.8f)
+    }
+
+    @Test
+    fun createPackStoresCustomStylePhoto() {
+        val store = store()
+        val bytes = byteArrayOf(1, 2, 3, 4)
+        val pack = store.createPack(
+            PackCreateSpec(
+                name = "My photo",
+                stylePrompt = "My photo",
+                generatorMode = GenerationMode.ON_DEVICE,
+                stylePresetId = StylePreset.CUSTOM_ID,
+                customStyleBytes = bytes
+            ),
+            createdAtMillis = 11
+        )
+        val file = store.getCustomStyleFile(pack.id)
+        assertThat(file).isNotNull()
+        assertThat(file!!.readBytes()).isEqualTo(bytes)
+        assertThat(store.getPack(pack.id)!!.customStylePath).isEqualTo("style.png")
+    }
+
+    @Test
     fun iconFileNameSanitizesUnsafeCharacters() {
         assertThat(FileIconPackStore.iconFileName("com.foo/bar:baz"))
             .isEqualTo("com.foo_bar_baz.png")

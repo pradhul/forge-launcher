@@ -1,9 +1,12 @@
 package com.sduduzog.slimlauncher.ui.icons
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sduduzog.slimlauncher.data.model.App
 import com.sduduzog.slimlauncher.icons.ApiKeyStore
+import com.sduduzog.slimlauncher.icons.GenerationMode
 import com.sduduzog.slimlauncher.icons.GenerationProgress
 import com.sduduzog.slimlauncher.icons.IconApplyLogic
 import com.sduduzog.slimlauncher.icons.IconPack
@@ -11,7 +14,10 @@ import com.sduduzog.slimlauncher.icons.IconPackGenerator
 import com.sduduzog.slimlauncher.icons.IconPackStore
 import com.sduduzog.slimlauncher.icons.IconPreferences
 import com.sduduzog.slimlauncher.icons.InstalledAppsQuery
+import com.sduduzog.slimlauncher.icons.PackCreateSpec
+import com.sduduzog.slimlauncher.icons.StylePreset
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,16 +34,28 @@ data class IconPacksUiState(
     val keySaved: Boolean = false,
     val createName: String = "",
     val createPrompt: String = "",
+    val createMode: GenerationMode = GenerationMode.ON_DEVICE,
+    val createPresetId: String = StylePreset.ALL.first().id,
+    val createStrength: Float = StylePreset.ALL.first().defaultStrength,
+    val customStyleBytes: ByteArray? = null,
     val selectedPackId: String? = null,
     val installedApps: List<App> = emptyList(),
     val showCreate: Boolean = false,
     val confirmDeleteId: String? = null
 ) {
     val selectedPack: IconPack? get() = packs.firstOrNull { it.id == selectedPackId }
+    val canStartCreate: Boolean
+        get() = when (createMode) {
+            GenerationMode.ON_DEVICE -> {
+                createPresetId != StylePreset.CUSTOM_ID || customStyleBytes != null
+            }
+            GenerationMode.GEMINI -> createPrompt.isNotBlank() && hasApiKey
+        }
 }
 
 @HiltViewModel
 class IconPacksViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val store: IconPackStore,
     private val prefs: IconPreferences,
     private val apiKeyStore: ApiKeyStore,
@@ -93,15 +111,64 @@ class IconPacksViewModel @Inject constructor(
         _ui.update { it.copy(createPrompt = value) }
     }
 
+    fun onCreateModeChange(mode: GenerationMode) {
+        _ui.update { it.copy(createMode = mode) }
+    }
+
+    fun onPresetSelected(presetId: String) {
+        val preset = StylePreset.byId(presetId) ?: StylePreset.CUSTOM
+        _ui.update {
+            it.copy(
+                createPresetId = presetId,
+                createStrength = preset.defaultStrength,
+                createName = it.createName.ifBlank { preset.displayName }
+            )
+        }
+    }
+
+    fun onStrengthChange(value: Float) {
+        _ui.update { it.copy(createStrength = value.coerceIn(0.2f, 1f)) }
+    }
+
+    fun onCustomStylePicked(uri: Uri) {
+        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return
+        _ui.update {
+            it.copy(
+                customStyleBytes = bytes,
+                createPresetId = StylePreset.CUSTOM_ID,
+                createName = it.createName.ifBlank { "My photo" }
+            )
+        }
+    }
+
     fun showCreate(show: Boolean) {
         _ui.update { it.copy(showCreate = show) }
     }
 
     fun createPack() {
         val state = _ui.value
-        if (state.createPrompt.isBlank() || generator.isRunning) return
-        if (!apiKeyStore.hasKey()) return
-        val pack = store.createPack(state.createName, state.createPrompt)
+        if (!state.canStartCreate || generator.isRunning) return
+        val spec = PackCreateSpec(
+            name = state.createName,
+            stylePrompt = if (state.createMode == GenerationMode.GEMINI) {
+                state.createPrompt
+            } else {
+                StylePreset.byId(state.createPresetId)?.displayName
+                    ?: "Custom style"
+            },
+            generatorMode = state.createMode,
+            stylePresetId = if (state.createMode == GenerationMode.ON_DEVICE) {
+                state.createPresetId
+            } else {
+                null
+            },
+            styleStrength = state.createStrength,
+            customStyleBytes = state.customStyleBytes.takeIf {
+                state.createMode == GenerationMode.ON_DEVICE &&
+                    state.createPresetId == StylePreset.CUSTOM_ID
+            }
+        )
+        val pack = store.createPack(spec)
         prefs.applyPack(pack.id)
         generator.startPack(pack, state.installedApps)
         _ui.update {
@@ -156,9 +223,10 @@ class IconPacksViewModel @Inject constructor(
     }
 
     fun regenerate(app: App) {
-        val packId = _ui.value.selectedPackId ?: return
-        if (!apiKeyStore.hasKey() || generator.isRunning) return
-        generator.regenerate(packId, app)
+        val pack = _ui.value.selectedPack ?: return
+        if (generator.isRunning) return
+        if (pack.generatorMode == GenerationMode.GEMINI && !apiKeyStore.hasKey()) return
+        generator.regenerate(pack.id, app)
     }
 
     fun cancelGeneration() {

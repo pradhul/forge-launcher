@@ -24,14 +24,35 @@ class FileIconPackStore(private val rootDir: File) : IconPackStore {
     }
 
     override fun createPack(name: String, stylePrompt: String, createdAtMillis: Long): IconPack {
-        val trimmedName = name.trim()
-        val trimmedPrompt = stylePrompt.trim()
+        return createPack(PackCreateSpec(name, stylePrompt), createdAtMillis)
+    }
+
+    override fun createPack(spec: PackCreateSpec, createdAtMillis: Long): IconPack {
+        val trimmedName = spec.name.trim()
+        val trimmedPrompt = spec.stylePrompt.trim()
+        val packId = UUID.randomUUID().toString()
+        var customPath: String? = null
+        if (spec.customStyleBytes != null) {
+            customPath = CUSTOM_STYLE_NAME
+            val file = File(packDir(packId), customPath)
+            file.parentFile?.mkdirs()
+            file.writeBytes(spec.customStyleBytes)
+        }
         val pack = IconPack(
-            id = UUID.randomUUID().toString(),
-            name = trimmedName.ifBlank { trimmedPrompt.ifBlank { "Untitled" } },
-            stylePrompt = trimmedPrompt,
+            id = packId,
+            name = trimmedName.ifBlank {
+                StylePreset.byId(spec.stylePresetId)?.displayName
+                    ?: trimmedPrompt.ifBlank { "Untitled" }
+            },
+            stylePrompt = trimmedPrompt.ifBlank {
+                StylePreset.byId(spec.stylePresetId)?.displayName.orEmpty()
+            },
             createdAtMillis = createdAtMillis,
-            icons = emptyMap()
+            icons = emptyMap(),
+            generatorMode = spec.generatorMode,
+            stylePresetId = spec.stylePresetId,
+            styleStrength = spec.styleStrength.coerceIn(0f, 1f),
+            customStylePath = customPath
         )
         writeManifest(pack)
         return pack
@@ -72,6 +93,12 @@ class FileIconPackStore(private val rootDir: File) : IconPackStore {
         return getIconFile(packId, packageName) != null
     }
 
+    override fun getCustomStyleFile(packId: String): File? {
+        val pack = getPack(packId) ?: return null
+        val relative = pack.customStylePath ?: return null
+        return File(packDir(packId), relative).takeIf { it.isFile }
+    }
+
     private fun packDir(id: String): File = File(rootDir, id)
 
     private fun writeManifest(pack: IconPack) {
@@ -102,7 +129,11 @@ class FileIconPackStore(private val rootDir: File) : IconPackStore {
                 name = json.getString("name"),
                 stylePrompt = json.optString("stylePrompt"),
                 createdAtMillis = json.optLong("createdAtMillis"),
-                icons = icons
+                icons = icons,
+                generatorMode = GenerationMode.fromStorage(json.optString("generatorMode")),
+                stylePresetId = json.optString("stylePresetId").takeIf { it.isNotBlank() },
+                styleStrength = json.optDouble("styleStrength", 0.7).toFloat(),
+                customStylePath = json.optString("customStylePath").takeIf { it.isNotBlank() }
             )
         } catch (_: Exception) {
             null
@@ -118,11 +149,16 @@ class FileIconPackStore(private val rootDir: File) : IconPackStore {
             .put("stylePrompt", pack.stylePrompt)
             .put("createdAtMillis", pack.createdAtMillis)
             .put("icons", icons)
+            .put("generatorMode", pack.generatorMode.storageValue)
+            .put("stylePresetId", pack.stylePresetId ?: "")
+            .put("styleStrength", pack.styleStrength.toDouble())
+            .put("customStylePath", pack.customStylePath ?: "")
             .toString()
     }
 
     companion object {
         const val MANIFEST_NAME = "manifest.json"
+        const val CUSTOM_STYLE_NAME = "style.png"
 
         fun iconFileName(packageName: String): String {
             val safe = packageName.replace(Regex("[^A-Za-z0-9._-]"), "_")

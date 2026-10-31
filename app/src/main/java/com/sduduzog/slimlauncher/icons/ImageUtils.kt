@@ -31,7 +31,7 @@ object ImageUtils {
         return encodePng(scaled)
     }
 
-    private fun encodePng(bitmap: Bitmap): ByteArray {
+    fun encodePng(bitmap: Bitmap): ByteArray {
         val stream = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
         return stream.toByteArray()

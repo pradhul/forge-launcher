@@ -29,7 +29,7 @@
     <string name="options_fragment_about_slim">About Forge</string>
     <string name="options_fragment_toggle_icons">Toggle Icons</string>
     <string name="options_fragment_icon_packs">Icon Packs</string>
-    <string name="icon_packs_api_key_hint">Create a free key in Google AI Studio</string>
+    <string name="icon_packs_api_key_hint">On-device styles need no key. Gemini image generation needs a paid AI Studio key.</string>
     <string name="icon_packs_get_api_key">Get API key</string>
     <string name="google_ai_studio_api_key_url" translatable="false">https://aistudio.google.com/apikey</string>
     <string name="options_fragment_device_settings">Device Settings</string>

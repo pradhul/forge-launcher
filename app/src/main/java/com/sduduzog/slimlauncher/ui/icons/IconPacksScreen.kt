@@ -3,8 +3,14 @@ package com.sduduzog.slimlauncher.ui.icons
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.TypedValue
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -22,6 +29,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -36,6 +44,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -45,8 +55,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.data.model.App
+import com.sduduzog.slimlauncher.icons.GenerationMode
 import com.sduduzog.slimlauncher.icons.GenerationProgress
 import com.sduduzog.slimlauncher.icons.IconPack
+import com.sduduzog.slimlauncher.icons.StylePreset
 
 @Composable
 fun ForgeTheme(content: @Composable () -> Unit) {
@@ -93,6 +105,11 @@ fun ForgeTheme(content: @Composable () -> Unit) {
 fun IconPacksRoute(viewModel: IconPacksViewModel) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
     val progress by viewModel.progress.collectAsStateWithLifecycle()
+    val photoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri?.let(viewModel::onCustomStylePicked)
+    }
     IconPacksScreen(
         state = state,
         progress = progress,
@@ -102,6 +119,14 @@ fun IconPacksRoute(viewModel: IconPacksViewModel) {
         onShowCreate = viewModel::showCreate,
         onCreateNameChange = viewModel::onCreateNameChange,
         onCreatePromptChange = viewModel::onCreatePromptChange,
+        onCreateModeChange = viewModel::onCreateModeChange,
+        onPresetSelected = viewModel::onPresetSelected,
+        onStrengthChange = viewModel::onStrengthChange,
+        onPickCustomStyle = {
+            photoPicker.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+        },
         onCreatePack = viewModel::createPack,
         onApply = viewModel::applyPack,
         onUseStock = viewModel::useStockIcons,
@@ -126,6 +151,10 @@ fun IconPacksScreen(
     onShowCreate: (Boolean) -> Unit,
     onCreateNameChange: (String) -> Unit,
     onCreatePromptChange: (String) -> Unit,
+    onCreateModeChange: (GenerationMode) -> Unit,
+    onPresetSelected: (String) -> Unit,
+    onStrengthChange: (Float) -> Unit,
+    onPickCustomStyle: () -> Unit,
     onCreatePack: () -> Unit,
     onApply: (String) -> Unit,
     onUseStock: () -> Unit,
@@ -161,6 +190,10 @@ fun IconPacksScreen(
                 generating = progress.running,
                 onNameChange = onCreateNameChange,
                 onPromptChange = onCreatePromptChange,
+                onModeChange = onCreateModeChange,
+                onPresetSelected = onPresetSelected,
+                onStrengthChange = onStrengthChange,
+                onPickCustomStyle = onPickCustomStyle,
                 onCreate = onCreatePack,
                 onCancel = { onShowCreate(false) }
             )
@@ -276,7 +309,7 @@ private fun PackList(
         if (state.keySaved) {
             Text("Key saved. It is stored only on this device.")
         }
-        TextButton(onClick = onShowCreate, enabled = state.hasApiKey && !generating) {
+        TextButton(onClick = onShowCreate, enabled = !generating) {
             Text("Create pack")
         }
         TextButton(onClick = onUseStock) {
@@ -293,7 +326,7 @@ private fun PackList(
             )
         }
         if (state.packs.isEmpty()) {
-            Text("No packs yet. Create one from a style prompt.")
+            Text("No packs yet. Create one with an on-device style — or Gemini if you have a paid key.")
         }
         Spacer(Modifier.height(24.dp))
     }
@@ -316,7 +349,7 @@ private fun PackRow(
     ) {
         Text(if (applied) "${pack.name}  ·  Applied" else pack.name, fontSize = 20.sp)
         Text(
-            "${pack.stylePrompt.ifBlank { "No style" }}  ·  ${pack.iconCount} icons",
+            "${pack.stylePrompt.ifBlank { "No style" }}  ·  ${pack.iconCount} icons  ·  ${if (pack.generatorMode == GenerationMode.GEMINI) "Gemini" else "On-device"}",
             fontSize = 14.sp
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -333,6 +366,10 @@ private fun CreatePackForm(
     generating: Boolean,
     onNameChange: (String) -> Unit,
     onPromptChange: (String) -> Unit,
+    onModeChange: (GenerationMode) -> Unit,
+    onPresetSelected: (String) -> Unit,
+    onStrengthChange: (Float) -> Unit,
+    onPickCustomStyle: () -> Unit,
     onCreate: () -> Unit,
     onCancel: () -> Unit
 ) {
@@ -342,6 +379,15 @@ private fun CreatePackForm(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        Text("Mode", fontSize = 18.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { onModeChange(GenerationMode.ON_DEVICE) }) {
+                Text(if (state.createMode == GenerationMode.ON_DEVICE) "On-device styles ✓" else "On-device styles")
+            }
+            TextButton(onClick = { onModeChange(GenerationMode.GEMINI) }) {
+                Text(if (state.createMode == GenerationMode.GEMINI) "Gemini ✓" else "Gemini")
+            }
+        }
         OutlinedTextField(
             value = state.createName,
             onValueChange = onNameChange,
@@ -352,23 +398,97 @@ private fun CreatePackForm(
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
             colors = fieldColors()
         )
-        OutlinedTextField(
-            value = state.createPrompt,
-            onValueChange = onPromptChange,
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 3,
-            label = { Text("Style prompt") },
-            placeholder = { Text("neon cyberpunk") },
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-            colors = fieldColors()
-        )
-        Text("Forge will ask Gemini for a square icon for each installed app. This uses your AI Studio quota.")
+        if (state.createMode == GenerationMode.ON_DEVICE) {
+            Text("Choose a style. Neural style transfer runs on this phone — no API key.")
+            StylePresetGrid(
+                selectedId = state.createPresetId,
+                onPresetSelected = onPresetSelected
+            )
+            TextButton(onClick = onPickCustomStyle) { Text("Use my photo") }
+            if (state.createPresetId == StylePreset.CUSTOM_ID) {
+                val preview = remember(state.customStyleBytes) {
+                    state.customStyleBytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+                }
+                if (preview != null) {
+                    Image(
+                        bitmap = preview.asImageBitmap(),
+                        contentDescription = "Custom style",
+                        modifier = Modifier.size(72.dp),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Text("Pick a photo from the gallery to use as the style.")
+                }
+            }
+            Text("Style strength  ${(state.createStrength * 100).toInt()}%")
+            Slider(
+                value = state.createStrength,
+                onValueChange = onStrengthChange,
+                valueRange = 0.2f..1f
+            )
+        } else {
+            OutlinedTextField(
+                value = state.createPrompt,
+                onValueChange = onPromptChange,
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3,
+                label = { Text("Style prompt") },
+                placeholder = { Text("neon cyberpunk") },
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                colors = fieldColors()
+            )
+            Text("Gemini needs a paid AI Studio key. Free-tier keys have no image quota.")
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(
                 onClick = onCreate,
-                enabled = state.createPrompt.isNotBlank() && state.hasApiKey && !generating
+                enabled = state.canStartCreate && !generating
             ) { Text("Start") }
             TextButton(onClick = onCancel) { Text("Cancel") }
+        }
+    }
+}
+
+@Composable
+private fun StylePresetGrid(
+    selectedId: String,
+    onPresetSelected: (String) -> Unit
+) {
+    val context = LocalContext.current
+    StylePreset.ALL.chunked(3).forEach { row ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            row.forEach { preset ->
+                val bitmap = remember(preset.id) {
+                    context.assets.open(preset.assetPath).use { BitmapFactory.decodeStream(it) }
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onPresetSelected(preset.id) }
+                        .then(
+                            if (preset.id == selectedId) {
+                                Modifier.border(2.dp, MaterialTheme.colorScheme.onBackground)
+                            } else {
+                                Modifier
+                            }
+                        )
+                        .padding(4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = preset.displayName,
+                            modifier = Modifier.size(64.dp),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                    Text(preset.displayName, fontSize = 12.sp)
+                }
+            }
         }
     }
 }
@@ -411,7 +531,9 @@ private fun PackDetail(
                     )
                     TextButton(
                         onClick = { onRegenerate(app) },
-                        enabled = hasApiKey && !generating
+                        enabled = !generating && (
+                            pack.generatorMode == GenerationMode.ON_DEVICE || hasApiKey
+                            )
                     ) { Text("Regenerate") }
                 }
             }
