@@ -25,7 +25,8 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.view.inputmethod.InputMethodManager
+import com.sduduzog.slimlauncher.ui.home.DrawerIme
+import com.sduduzog.slimlauncher.ui.home.DrawerWindowLogic
 import android.widget.PopupWindow
 import android.widget.TextView
 import android.widget.Toast
@@ -60,7 +61,6 @@ import com.sduduzog.slimlauncher.models.MainViewModel
 import com.sduduzog.slimlauncher.ui.home.AppDrawerOverlay
 import com.sduduzog.slimlauncher.ui.home.AppDrawerViewModel
 import com.sduduzog.slimlauncher.ui.icons.ForgeTheme
-import com.sduduzog.slimlauncher.wallpaper.DrawerBlurLogic
 import com.sduduzog.slimlauncher.wallpaper.DrawerBlurWindow
 import com.sduduzog.slimlauncher.wallpaper.DrawerMotionLogic
 import com.sduduzog.slimlauncher.wallpaper.WallpaperThemeLogic
@@ -85,6 +85,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     private var drawerOpen by mutableStateOf(false)
     private var homeApps: List<HomeApp> = emptyList()
     private var drawerDialog: Dialog? = null
+    private var closeDrawerAction: Runnable? = null
 
     @Inject
     lateinit var iconResolver: AppIconResolver
@@ -170,7 +171,35 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                 false
             }
         }
-        dialog.window?.let { DrawerBlurWindow.prepareTranslucent(it) }
+        dialog.setOnShowListener {
+            val window = dialog.window
+            window?.let {
+                DrawerBlurWindow.prepareTranslucent(it)
+                com.sduduzog.slimlauncher.ui.home.DrawerIme.applyWindow(
+                    it,
+                    iconPreferences.openKeyboardOnDrawer
+                )
+            }
+            window?.decorView?.visibility = View.VISIBLE
+            android.util.Log.i(
+                com.sduduzog.slimlauncher.ui.home.DrawerIme.TAG,
+                "show focused=${window?.decorView?.hasWindowFocus()} " +
+                    "decorVisible=${window?.decorView?.visibility == View.VISIBLE}"
+            )
+        }
+        dialog.window?.decorView?.viewTreeObserver?.addOnWindowFocusChangeListener { hasFocus ->
+            android.util.Log.i(
+                com.sduduzog.slimlauncher.ui.home.DrawerIme.TAG,
+                "windowFocus=$hasFocus touchable=${dialog.window?.decorView?.isShown}"
+            )
+        }
+        dialog.window?.let {
+            DrawerBlurWindow.prepareTranslucent(it)
+            com.sduduzog.slimlauncher.ui.home.DrawerIme.applyWindow(
+                it,
+                iconPreferences.openKeyboardOnDrawer
+            )
+        }
         drawerDialog = dialog
         return dialog
     }
@@ -292,6 +321,8 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     }
 
     override fun onDestroyView() {
+        cancelCloseDrawer()
+        DrawerIme.hide(drawerDialog?.window?.decorView)
         drawerDialog?.dismiss()
         drawerDialog = null
         super.onDestroyView()
@@ -507,13 +538,27 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     }
 
     private fun openDrawer() {
+        cancelCloseDrawer()
         drawerViewModel.refreshBackdrop()
         val dialog = ensureDrawerDialog()
-        if (!dialog.isShowing) {
+        val decor = dialog.window?.decorView
+        val decorVisible = decor?.visibility == View.VISIBLE
+        if (DrawerWindowLogic.shouldCallShow(dialog.isShowing, decorVisible)) {
+            decor?.visibility = View.VISIBLE
             dialog.show()
-            dialog.window?.let { DrawerBlurWindow.prepareTranslucent(it) }
+        } else {
+            decor?.visibility = View.VISIBLE
+        }
+        dialog.window?.let { window ->
+            DrawerBlurWindow.prepareTranslucent(window)
+            DrawerIme.applyWindow(window, iconPreferences.openKeyboardOnDrawer)
         }
         drawerOpen = true
+        android.util.Log.i(
+            DrawerIme.TAG,
+            "open showing=${dialog.isShowing} decorVisible=${dialog.window?.decorView?.visibility == View.VISIBLE} " +
+                "focused=${dialog.window?.decorView?.hasWindowFocus()} keyboard=${iconPreferences.openKeyboardOnDrawer}"
+        )
         syncWindowBlur()
         drawerViewModel.refreshInstalled()
     }
@@ -524,14 +569,26 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         syncWindowBlur()
         swallowOverflowClicks()
         drawerViewModel.onQueryChange("")
-        val imm = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-        imm?.hideSoftInputFromWindow(binding?.root?.windowToken, 0)
-        val host = binding?.root ?: drawerDialog?.window?.decorView
-        host?.postDelayed({
-            if (!drawerOpen) {
-                drawerDialog?.hide()
+        val dialogView = drawerDialog?.window?.decorView
+        DrawerIme.hide(dialogView)
+        android.util.Log.i(DrawerIme.TAG, "close showing=${drawerDialog?.isShowing}")
+        val host = dialogView ?: binding?.root ?: return
+        cancelCloseDrawer()
+        val action = Runnable {
+            if (DrawerWindowLogic.shouldDismissAfterClose(drawerOpen, true)) {
+                android.util.Log.i(DrawerIme.TAG, "dismiss")
+                drawerDialog?.dismiss()
             }
-        }, DrawerMotionLogic.ANIM_MS.toLong())
+        }
+        closeDrawerAction = action
+        host.postDelayed(action, DrawerMotionLogic.ANIM_MS.toLong())
+    }
+
+    private fun cancelCloseDrawer() {
+        val action = closeDrawerAction ?: return
+        val host = drawerDialog?.window?.decorView ?: binding?.root
+        host?.removeCallbacks(action)
+        closeDrawerAction = null
     }
 
     private fun swallowOverflowClicks() {

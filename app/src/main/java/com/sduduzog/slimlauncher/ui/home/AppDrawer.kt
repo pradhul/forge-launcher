@@ -44,6 +44,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -58,6 +59,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -69,7 +71,6 @@ import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.data.model.App
 import com.sduduzog.slimlauncher.wallpaper.DrawerBlurLogic
 import com.sduduzog.slimlauncher.wallpaper.DrawerMotionLogic
-import kotlinx.coroutines.delay
 
 @Composable
 fun AppDrawerOverlay(
@@ -194,12 +195,17 @@ fun AppDrawer(
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (available.y > 0 && !gridState.canScrollBackward) {
+                    val consume = DrawerWindowLogic.shouldConsumeCloseScroll(
+                        available.y,
+                        true,
+                        drag
+                    )
                     drag += available.y
                     if (DrawerMotionLogic.shouldCloseFromDrawerSwipe(drag, true)) {
                         closeDrawerState.value()
                         drag = 0f
                     }
-                    return Offset(0f, available.y)
+                    return if (consume) Offset(0f, available.y) else Offset.Zero
                 }
                 if (available.y < 0) drag = 0f
                 return Offset.Zero
@@ -223,14 +229,12 @@ fun AppDrawer(
                 )
                 .then(closeOnSwipeDown)
         )
-        Box(modifier = closeOnSwipeDown) {
-            DrawerSearchField(
-                visible = visible,
-                state = state,
-                onQueryChange = onQueryChange,
-                onLaunch = launchApp
-            )
-        }
+        DrawerSearchField(
+            visible = visible,
+            state = state,
+            onQueryChange = onQueryChange,
+            onLaunch = launchApp
+        )
         Spacer(Modifier.height(12.dp))
         if (state.apps.isEmpty()) {
             Text(
@@ -318,6 +322,7 @@ private fun DrawerSearchField(
     onLaunch: (App) -> Unit
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
+    val view = LocalView.current
     val focusRequester = remember { FocusRequester() }
     val onBackground = state.theme.onBackground
     val container = Color(DrawerSearchStyle.containerColor(state.theme.background, state.theme.accent))
@@ -326,13 +331,37 @@ private fun DrawerSearchField(
     val icon = Color(DrawerSearchStyle.iconColor(onBackground))
     val cursor = Color(DrawerSearchStyle.cursorColor(state.theme.accent))
     LaunchedEffect(visible, state.openKeyboardOnOpen) {
-        if (AppDrawerLogic.shouldShowKeyboard(state.openKeyboardOnOpen, visible)) {
-            delay(KEYBOARD_AFTER_OPEN_MS)
-            focusRequester.requestFocus()
-            keyboard?.show()
-        } else {
+        if (DrawerWindowLogic.shouldHideIme(visible)) {
+            DrawerIme.hide(view)
             keyboard?.hide()
+            return@LaunchedEffect
         }
+        if (!AppDrawerLogic.shouldShowKeyboard(state.openKeyboardOnOpen, visible)) {
+            return@LaunchedEffect
+        }
+        var frames = 0
+        while (
+            visible &&
+            !DrawerWindowLogic.shouldRequestIme(
+                settingOn = true,
+                drawerVisible = visible,
+                windowHasFocus = view.hasWindowFocus()
+            ) &&
+            frames < 45
+        ) {
+            withFrameNanos { }
+            frames++
+        }
+        if (!DrawerWindowLogic.shouldRequestIme(true, visible, view.hasWindowFocus())) {
+            android.util.Log.i(
+                DrawerIme.TAG,
+                "ime skip focused=${view.hasWindowFocus()} visible=$visible frames=$frames"
+            )
+            return@LaunchedEffect
+        }
+        withFrameNanos { }
+        runCatching { focusRequester.requestFocus() }
+        DrawerIme.show(view)
     }
     val submitSingleMatch = {
         AppDrawerLogic.imeLaunchTarget(state.apps.map { it.app })?.let(onLaunch)
@@ -380,8 +409,6 @@ private fun DrawerSearchField(
         )
     )
 }
-
-private const val KEYBOARD_AFTER_OPEN_MS = 180L
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

@@ -17,6 +17,8 @@ import com.sduduzog.slimlauncher.wallpaper.LauncherFadeLogic
 import com.sduduzog.slimlauncher.wallpaper.WallpaperSnapshotter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -63,6 +65,7 @@ class AppDrawerViewModel @Inject constructor(
     private val _icons = MutableStateFlow<Map<String, Bitmap>>(emptyMap())
     private val _backdrop = MutableStateFlow<Bitmap?>(null)
     private val _crossWindowBlur = MutableStateFlow(false)
+    private var reloadJob: Job? = null
 
     val ui: StateFlow<AppDrawerUiState> = combine(
         combine(_query, _installed, _home, _icons) { query, installed, home, icons ->
@@ -117,7 +120,13 @@ class AppDrawerViewModel @Inject constructor(
     init {
         repository.apps.observeForever(homeObserver)
         viewModelScope.launch {
-            prefs.revision.collect { reloadIcons() }
+            prefs.revision.collect {
+                reloadJob?.cancel()
+                reloadJob = viewModelScope.launch {
+                    delay(RELOAD_DEBOUNCE_MS)
+                    reloadIcons()
+                }
+            }
         }
         viewModelScope.launch {
             prefs.chrome.collect { refreshBackdrop(it.drawerBlurPercent) }
@@ -196,5 +205,6 @@ class AppDrawerViewModel @Inject constructor(
 
     companion object {
         private const val ICON_PX = AppIconResolver.ICON_PX
+        private const val RELOAD_DEBOUNCE_MS = 250L
     }
 }
