@@ -104,7 +104,7 @@
         </LinearLayout>
 
         <LinearLayout
-            android:id="@+id/options_fragment_artistic_icons"
+            android:id="@+id/options_fragment_icon_style"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="?attr/selectableItemBackground"
@@ -123,29 +123,22 @@
                 android:paddingEnd="16dp">
 
                 <TextView
-                    android:id="@+id/options_fragment_artistic_icons_title"
+                    android:id="@+id/options_fragment_icon_style_title"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/options_fragment_artistic_icons"
+                    android:text="@string/options_fragment_icon_style"
                     android:textAppearance="@style/TextAppearance.AppCompat"
                     android:textSize="@dimen/_20ssp" />
 
                 <TextView
-                    android:id="@+id/options_fragment_artistic_icons_desc"
+                    android:id="@+id/options_fragment_icon_style_desc"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="@string/options_fragment_artistic_icons_desc"
+                    android:text="@string/options_fragment_icon_style_desc"
                     android:textAppearance="@style/TextAppearance.AppCompat"
                     android:textSize="12sp" />
             </LinearLayout>
-
-            <Switch
-                android:id="@+id/options_fragment_artistic_icons_switch"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:clickable="false"
-                android:focusable="false" />
         </LinearLayout>
 
         <TextView

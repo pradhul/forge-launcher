@@ -4,7 +4,11 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
+import android.graphics.drawable.ColorDrawable
 import android.graphics.Rect
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.BitmapDrawable
@@ -88,6 +92,86 @@ class OnDeviceIconStylizer @Inject constructor(
         val processed = ThemedIconTint.tint(pixels, theme.accent, strength)
         val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         out.setPixels(processed, 0, w, 0, 0, w, h)
+        return ImageUtils.encodePng(out)
+    }
+
+    /** Renders a pack icon for the chosen [style] (palette/no-transfer path). */
+    fun renderForStyle(source: Drawable, theme: PackTheme, strength: Float, style: IconStyle): ByteArray {
+        return when (style) {
+            IconStyle.THEMED -> themedIcon(source, theme, IconSizing.devicePx(context))
+            IconStyle.TINTED, IconStyle.ARTISTIC -> recolorWithPalette(source, theme, strength)
+            IconStyle.ORIGINAL -> ImageUtils.encodePng(renderFullIcon(source, IconSizing.devicePx(context)))
+        }
+    }
+
+    /**
+     * Android-style themed icon: one wallpaper glyph colour on a full-size
+     * wallpaper background, clipped to the device icon shape.
+     */
+    fun themedIcon(source: Drawable, theme: PackTheme, size: Int): ByteArray {
+        val px = size.coerceAtLeast(1)
+        val colors = ThemedIconPalette.forTheme(theme)
+        val src = source.mutate()
+        val shape = shapeMask(px)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && src is AdaptiveIconDrawable) {
+            val mono = src.monochrome
+            if (mono != null) {
+                // Same 108dp adaptive layout the system uses for themed icons.
+                val layer = (mono.constantState?.newDrawable()?.mutate() ?: mono.mutate())
+                layer.colorFilter = PorterDuffColorFilter(colors.foreground, PorterDuff.Mode.SRC_IN)
+                val themed = AdaptiveIconDrawable(ColorDrawable(colors.background), layer)
+                return ImageUtils.encodePng(drawFull(themed, px))
+            }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && src is AdaptiveIconDrawable) {
+            val fg = src.foreground
+            if (fg != null) {
+                val layer = fg.constantState?.newDrawable()?.mutate() ?: fg.mutate()
+                val fgOnly = drawFull(AdaptiveIconDrawable(ColorDrawable(Color.TRANSPARENT), layer), px)
+                val pixels = pixelsOf(fgOnly)
+                val glyph = GlyphExtractor.fromAlpha(pixels, px, px, shape)
+                if (glyph.ok) {
+                    return encode(GlyphExtractor.compose(glyph.alpha, shape, colors.background, colors.foreground), px)
+                }
+            }
+        }
+        val full = pixelsOf(renderFullIcon(src, px))
+        val glyph = GlyphExtractor.fromBitmap(full, px, px)
+        val out = if (glyph.ok) {
+            GlyphExtractor.compose(glyph.alpha, shape, colors.background, colors.foreground)
+        } else {
+            val (dark, light) = ThemedIconPalette.duotoneEnds(colors)
+            GlyphExtractor.duotone(full, shape, dark, light)
+        }
+        return encode(out, px)
+    }
+
+    /** Alpha of the device icon shape (adaptive mask on O+, squircle before). */
+    private fun shapeMask(px: Int): IntArray {
+        val pixels = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            pixelsOf(drawFull(AdaptiveIconDrawable(ColorDrawable(Color.BLACK), ColorDrawable(Color.TRANSPARENT)), px))
+        } else {
+            IconPostProcess.applyShapeMask(IntArray(px * px) { Color.BLACK }, px, px, BackplateShape.SQUIRCLE)
+        }
+        return IntArray(pixels.size) { IconPostProcess.alpha(pixels[it]) }
+    }
+
+    private fun drawFull(drawable: Drawable, px: Int): Bitmap {
+        val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+        drawable.setBounds(0, 0, px, px)
+        drawable.draw(Canvas(bmp))
+        return bmp
+    }
+
+    private fun pixelsOf(bmp: Bitmap): IntArray {
+        val out = IntArray(bmp.width * bmp.height)
+        bmp.getPixels(out, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+        return out
+    }
+
+    private fun encode(pixels: IntArray, px: Int): ByteArray {
+        val out = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+        out.setPixels(pixels, 0, px, 0, 0, px, px)
         return ImageUtils.encodePng(out)
     }
 

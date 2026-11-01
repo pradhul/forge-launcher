@@ -9,8 +9,8 @@ import kotlin.math.roundToInt
  * Pure-JVM so it can be unit tested.
  */
 object ThemedIconTint {
-    const val MIN_AMOUNT = 0.06f
-    const val MAX_AMOUNT = 0.20f
+    const val MIN_AMOUNT = 0.35f
+    const val MAX_AMOUNT = 0.50f
 
     /** Maps the user's 0.2..1 strength slider onto a low tint amount. */
     fun amountFor(strength: Float): Float {

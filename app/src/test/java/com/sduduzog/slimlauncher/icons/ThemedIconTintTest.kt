@@ -11,7 +11,8 @@ class ThemedIconTintTest {
     fun amountStaysSubtle() {
         assertThat(ThemedIconTint.amountFor(0f)).isAtLeast(ThemedIconTint.MIN_AMOUNT - 1e-4f)
         assertThat(ThemedIconTint.amountFor(1f)).isAtMost(ThemedIconTint.MAX_AMOUNT)
-        assertThat(ThemedIconTint.amountFor(5f)).isAtMost(0.2f)
+        assertThat(ThemedIconTint.amountFor(0.7f)).isWithin(0.02f).of(0.45f)
+        assertThat(ThemedIconTint.amountFor(5f)).isAtMost(0.5f)
     }
 
     @Test
@@ -27,7 +28,7 @@ class ThemedIconTintTest {
     fun keepsArtworkRecognisable() {
         val red = IconPostProcess.argb(255, 230, 30, 30)
         val out = ThemedIconTint.tint(intArrayOf(red), accent, 1f)[0]
-        assertThat(abs(IconPostProcess.red(out) - 230)).isAtMost(60)
+        assertThat(abs(IconPostProcess.red(out) - 230)).isAtMost(110)
         assertThat(IconPostProcess.red(out)).isGreaterThan(IconPostProcess.blue(out))
     }
 

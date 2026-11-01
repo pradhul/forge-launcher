@@ -1,5 +1,6 @@
 package com.sduduzog.slimlauncher.wallpaper
 
+import com.sduduzog.slimlauncher.icons.IconStyle
 import android.graphics.Bitmap
 import com.sduduzog.slimlauncher.icons.GenerationMode
 import com.sduduzog.slimlauncher.icons.IconPackGenerator
@@ -66,15 +67,20 @@ class WallpaperPackCoordinator @Inject constructor(
             }
             return
         }
-        val artistic = bitmap != null && prefs.artisticIconStyle
+        val style = prefs.iconStyle
+        if (style == IconStyle.ORIGINAL) {
+            if (prefs.appliedPackId == WallpaperPackLogic.PACK_ID) prefs.revertToStock()
+            return
+        }
+        val artistic = bitmap != null && style == IconStyle.ARTISTIC
         val key = if (artistic) {
             WallpaperPackLogic.cacheKey(
-                "${WallpaperPackLogic.RENDER_VERSION}:bitmap:$paletteKey",
+                "${WallpaperPackLogic.RENDER_VERSION}:${style.storageValue}:bitmap:$paletteKey",
                 WallpaperPackLogic.strengthHundredths(prefs.wallpaperStyleStrength)
             )
         } else {
             WallpaperPackLogic.cacheKey(
-                "${WallpaperPackLogic.RENDER_VERSION}:palette:$paletteKey",
+                "${WallpaperPackLogic.RENDER_VERSION}:${style.storageValue}:palette:$paletteKey",
                 WallpaperPackLogic.strengthHundredths(prefs.wallpaperStyleStrength)
             )
         }
@@ -139,12 +145,16 @@ class WallpaperPackCoordinator @Inject constructor(
         applyTheme(theme, prefs.lastAppliedPaletteKey ?: "styled", forgeBitmap(), force = true)
     }
 
-    fun setArtisticStyle(enabled: Boolean) {
-        prefs.artisticIconStyle = enabled
+    fun setIconStyle(style: IconStyle) {
+        prefs.iconStyle = style
         prefs.wallpaperStyleHash = null
-        if (!prefs.wallpaperStyledIcons) return
+        if (style == IconStyle.ORIGINAL) {
+            if (prefs.appliedPackId == WallpaperPackLogic.PACK_ID) prefs.revertToStock()
+            return
+        }
+        prefs.wallpaperStyledIcons = true
         val theme = prefs.wallpaperTheme ?: return
-        applyTheme(theme, prefs.lastAppliedPaletteKey ?: "artistic", forgeBitmap(), force = true)
+        applyTheme(theme, prefs.lastAppliedPaletteKey ?: "style", forgeBitmap(), force = true)
     }
 
     fun setStrength(strength: Float) {

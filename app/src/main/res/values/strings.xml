@@ -94,6 +94,14 @@
     <string name="remove_all_apps_dialog_message" translatable="false">"This action will not uninstall your apps."
     "It is just to confirm if you're clearing this list on purpose"</string>
 
-    <string name="options_fragment_artistic_icons">Artistic icon style</string>
-    <string name="options_fragment_artistic_icons_desc">Repaint wallpaper-themed icons with the on-device style-transfer look.</string>
+    <string name="options_fragment_icon_style">Icon style</string>
+    <string name="options_fragment_icon_style_desc">%1$s: %2$s</string>
+    <string name="icon_style_themed">Themed</string>
+    <string name="icon_style_themed_desc">App logos in one wallpaper colour on a matching background.</string>
+    <string name="icon_style_tinted">Tinted</string>
+    <string name="icon_style_tinted_desc">Real app icons with a visible wallpaper colour tint.</string>
+    <string name="icon_style_original">Original</string>
+    <string name="icon_style_original_desc">Unchanged app icons, no wallpaper theming.</string>
+    <string name="icon_style_artistic">Artistic</string>
+    <string name="icon_style_artistic_desc">Repaint icons with the on-device style-transfer look.</string>
 </resources>

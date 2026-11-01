@@ -173,7 +173,7 @@ class IconPackGenerator @Inject constructor(
     private fun generatePalette(app: App, pack: IconPack): ByteArray {
         val drawable = stockDrawable(app) ?: iconResolver.fallbackIcon()
         val theme = pack.theme ?: prefs.wallpaperTheme ?: PackTheme.STOCK
-        return stylizer.recolorWithPalette(drawable, theme, pack.styleStrength)
+        return stylizer.renderForStyle(drawable, theme, pack.styleStrength, prefs.iconStyle)
     }
 
     private fun generateOnDeviceOrFallback(

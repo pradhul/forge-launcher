@@ -10,11 +10,13 @@ import android.view.ViewGroup
 import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.navigation.Navigation
 import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.databinding.OptionsFragmentBinding
 import com.sduduzog.slimlauncher.diag.AboutDebugLog
 import com.sduduzog.slimlauncher.icons.IconPreferences
+import com.sduduzog.slimlauncher.icons.IconStyle
 import com.sduduzog.slimlauncher.icons.PackThemeController
 import com.sduduzog.slimlauncher.utils.BaseFragment
 import com.sduduzog.slimlauncher.wallpaper.WallpaperPackCoordinator
@@ -56,10 +58,7 @@ class OptionsFragment : BaseFragment() {
             iconPreferences.openKeyboardOnDrawer = !iconPreferences.openKeyboardOnDrawer
             syncToggles()
         }
-        binding!!.optionsFragmentArtisticIcons.setOnClickListener {
-            setArtisticStyle(!iconPreferences.artisticIconStyle)
-            syncToggles()
-        }
+        binding!!.optionsFragmentIconStyle.setOnClickListener { showIconStyleDialog() }
         binding!!.optionsFragmentIconPacks.setOnClickListener(
             Navigation.createNavigateOnClickListener(
                 R.id.action_optionsFragment_to_iconPacksFragment
@@ -106,17 +105,47 @@ class OptionsFragment : BaseFragment() {
         views.optionsFragmentOpenKeyboardSwitch.setOnCheckedChangeListener { _, checked ->
             iconPreferences.openKeyboardOnDrawer = checked
         }
-        views.optionsFragmentArtisticIconsSwitch.setOnCheckedChangeListener(null)
-        views.optionsFragmentArtisticIconsSwitch.isChecked = iconPreferences.artisticIconStyle
-        views.optionsFragmentArtisticIconsSwitch.setOnCheckedChangeListener { _, checked ->
-            if (checked != iconPreferences.artisticIconStyle) setArtisticStyle(checked)
-        }
+        val style = iconPreferences.iconStyle
+        views.optionsFragmentIconStyleDesc.text = getString(
+            R.string.options_fragment_icon_style_desc,
+            getString(styleLabel(style)),
+            getString(styleDesc(style))
+        )
     }
 
-    private fun setArtisticStyle(enabled: Boolean) {
-        iconPreferences.artisticIconStyle = enabled
+    private fun styleLabel(style: IconStyle): Int = when (style) {
+        IconStyle.THEMED -> R.string.icon_style_themed
+        IconStyle.TINTED -> R.string.icon_style_tinted
+        IconStyle.ORIGINAL -> R.string.icon_style_original
+        IconStyle.ARTISTIC -> R.string.icon_style_artistic
+    }
+
+    private fun styleDesc(style: IconStyle): Int = when (style) {
+        IconStyle.THEMED -> R.string.icon_style_themed_desc
+        IconStyle.TINTED -> R.string.icon_style_tinted_desc
+        IconStyle.ORIGINAL -> R.string.icon_style_original_desc
+        IconStyle.ARTISTIC -> R.string.icon_style_artistic_desc
+    }
+
+    private fun showIconStyleDialog() {
+        val styles = IconStyle.values()
+        val items = styles.map {
+            getString(R.string.options_fragment_icon_style_desc, getString(styleLabel(it)), getString(styleDesc(it)))
+        }.toTypedArray()
+        AlertDialog.Builder(requireContext())
+            .setTitle(R.string.options_fragment_icon_style)
+            .setSingleChoiceItems(items, styles.indexOf(iconPreferences.iconStyle)) { dialog, which ->
+                setIconStyle(styles[which])
+                dialog.dismiss()
+            }
+            .show()
+    }
+
+    private fun setIconStyle(style: IconStyle) {
+        iconPreferences.iconStyle = style
+        syncToggles()
         Thread {
-            runCatching { wallpaperPackCoordinator.setArtisticStyle(enabled) }
+            runCatching { wallpaperPackCoordinator.setIconStyle(style) }
         }.start()
     }
 
@@ -158,7 +187,6 @@ class OptionsFragment : BaseFragment() {
         views.optionsFragmentDrawerBlur.progressTintList = accent
         views.optionsFragmentDrawerBlur.thumbTintList = accent
         tintSwitch(views.optionsFragmentOpenKeyboardSwitch, theme.accent, theme.onBackground)
-        tintSwitch(views.optionsFragmentArtisticIconsSwitch, theme.accent, theme.onBackground)
     }
 
     private fun tintSwitch(switch: Switch, accent: Int, onBackground: Int) {

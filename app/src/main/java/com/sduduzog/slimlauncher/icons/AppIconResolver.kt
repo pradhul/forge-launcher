@@ -205,7 +205,7 @@ class AppIconResolver @Inject constructor(
         return try {
             val bytes = if (pack.generatorMode == GenerationMode.PALETTE) {
                 val theme = pack.theme ?: prefs.wallpaperTheme ?: PackTheme.STOCK
-                stylizer.recolorWithPalette(source, theme, pack.styleStrength)
+                stylizer.renderForStyle(source, theme, pack.styleStrength, prefs.iconStyle)
             } else {
                 stylizer.styleWithoutTransfer(source, preset)
             }

@@ -164,11 +164,14 @@ class IconPreferences(private val prefs: SharedPreferences) {
             notifyIconsChanged()
         }
 
-    /** Off by default: LiteRT style-transfer "artistic" look for wallpaper icons. */
-    var artisticIconStyle: Boolean
-        get() = prefs.getBoolean(KEY_ARTISTIC_ICON_STYLE, false)
+    /** Themed (default), Tinted, Original or Artistic (LiteRT). */
+    var iconStyle: IconStyle
+        get() = IconStyle.fromStorage(
+            prefs.getString(KEY_ICON_STYLE, null),
+            legacyArtistic = prefs.getBoolean(KEY_ARTISTIC_ICON_STYLE, false)
+        )
         set(value) {
-            prefs.edit { putBoolean(KEY_ARTISTIC_ICON_STYLE, value) }
+            prefs.edit { putString(KEY_ICON_STYLE, value.storageValue) }
             notifyIconsChanged()
         }
 
@@ -252,6 +255,7 @@ class IconPreferences(private val prefs: SharedPreferences) {
         const val KEY_BING_ERROR = "key_bing_last_error"
         const val KEY_OPEN_KEYBOARD = "key_open_keyboard_on_drawer"
         const val KEY_WALLPAPER_STYLED_ICONS = "key_wallpaper_styled_icons"
+        const val KEY_ICON_STYLE = "key_icon_style"
         const val KEY_ARTISTIC_ICON_STYLE = "key_artistic_icon_style"
         const val KEY_WALLPAPER_STYLE_STRENGTH = "key_wallpaper_style_strength"
         const val KEY_WALLPAPER_STYLE_HASH = "key_wallpaper_style_hash"
