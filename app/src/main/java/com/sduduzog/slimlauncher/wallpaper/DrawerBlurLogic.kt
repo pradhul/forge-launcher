@@ -97,6 +97,10 @@ object DrawerBlurLogic {
         return BackdropMode.COLOR_SCRIM
     }
 
+    fun shouldApplyComposeBlur(hasPreblurredBitmap: Boolean): Boolean {
+        return !hasPreblurredBitmap
+    }
+
     fun shouldDrawBitmapBackdrop(mode: BackdropMode, hasBitmap: Boolean, percent: Int): Boolean {
         if (!hasBitmap || clampPercent(percent) <= 0) return false
         // Draw the cached bitmap whenever we have one, even if live window

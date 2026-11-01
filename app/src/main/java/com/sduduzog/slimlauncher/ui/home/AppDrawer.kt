@@ -1,12 +1,8 @@
 package com.sduduzog.slimlauncher.ui.home
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -46,7 +42,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -56,6 +51,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
@@ -83,70 +79,69 @@ fun AppDrawerOverlay(
     onRegenerate: (App) -> Unit,
     onClose: () -> Unit
 ) {
-    val fade = tween<Float>(
-        durationMillis = DrawerMotionLogic.ANIM_MS,
-        easing = FastOutSlowInEasing
-    )
-    val slide = tween<androidx.compose.ui.unit.IntOffset>(
-        durationMillis = DrawerMotionLogic.ANIM_MS,
-        easing = FastOutSlowInEasing
-    )
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(fade) + slideInVertically(slide) { it / 10 },
-        exit = fadeOut(fade) + slideOutVertically(slide) { it / 10 }
-    ) {
-        Box(Modifier.fillMaxSize()) {
-            val bitmap = state.backdrop
-            val mode = DrawerBlurLogic.backdropMode(
-                sdkInt = android.os.Build.VERSION.SDK_INT,
-                crossWindowEnabled = state.crossWindowBlur,
-                hasBitmap = bitmap != null
-            )
-            if (DrawerBlurLogic.shouldDrawBitmapBackdrop(mode, bitmap != null, state.drawerBlurPercent)) {
-                bitmap?.let {
-                    val blurDp = DrawerBlurLogic.blurRadiusPx(
-                        state.drawerBlurPercent,
-                        1f
-                    )
-                    Image(
-                        bitmap = it.asImageBitmap(),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .then(
-                                if (android.os.Build.VERSION.SDK_INT >= 31 && blurDp > 0f) {
-                                    Modifier.blur(blurDp.dp)
-                                } else {
-                                    Modifier
-                                }
-                            ),
-                        contentScale = ContentScale.Crop
-                    )
-                }
-            }
-            val scrim = if (bitmap == null && state.drawerBlurPercent > 0) {
+    val motion = remember {
+        tween<Float>(
+            durationMillis = DrawerMotionLogic.ANIM_MS,
+            easing = FastOutSlowInEasing
+        )
+    }
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(visible) {
+        progress.animateTo(if (visible) 1f else 0f, motion)
+    }
+    val bitmap = state.backdrop
+    val backdropImage = remember(bitmap) { bitmap?.asImageBitmap() }
+    val mode = remember(state.crossWindowBlur, bitmap != null) {
+        DrawerBlurLogic.backdropMode(
+            sdkInt = android.os.Build.VERSION.SDK_INT,
+            crossWindowEnabled = state.crossWindowBlur,
+            hasBitmap = bitmap != null
+        )
+    }
+    val scrim = remember(bitmap, state.theme.seed, state.drawerBlurPercent) {
+        Color(
+            if (bitmap == null && state.drawerBlurPercent > 0) {
                 DrawerBlurLogic.fallbackScrimArgb(state.theme.seed, state.drawerBlurPercent)
             } else {
                 DrawerBlurLogic.tintArgb(state.theme.seed, state.drawerBlurPercent)
             }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(scrim))
-            )
-            AppDrawer(
-                visible = visible,
-                state = state,
-                onQueryChange = onQueryChange,
-                onLaunch = onLaunch,
-                onPin = onPin,
-                onUnpin = onUnpin,
-                onAppInfo = onAppInfo,
-                onRegenerate = onRegenerate,
-                onClose = onClose
-            )
+        )
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                val value = progress.value
+                this.alpha = value
+                translationY = (1f - value) * 32f
+            }
+    ) {
+        if (DrawerBlurLogic.shouldDrawBitmapBackdrop(mode, bitmap != null, state.drawerBlurPercent)) {
+            backdropImage?.let { image ->
+                Image(
+                    bitmap = image,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
         }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(scrim)
+        )
+        AppDrawer(
+            visible = visible,
+            state = state,
+            onQueryChange = onQueryChange,
+            onLaunch = onLaunch,
+            onPin = onPin,
+            onUnpin = onUnpin,
+            onAppInfo = onAppInfo,
+            onRegenerate = onRegenerate,
+            onClose = onClose
+        )
     }
 }
 
@@ -409,9 +404,10 @@ private fun DrawerGridCell(
             .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        if (item.icon != null) {
+        val iconImage = remember(item.icon) { item.icon?.asImageBitmap() }
+        if (iconImage != null) {
             Image(
-                bitmap = item.icon.asImageBitmap(),
+                bitmap = iconImage,
                 contentDescription = item.app.appName,
                 modifier = Modifier.size(AppDrawerGrid.ICON_DP.dp)
             )

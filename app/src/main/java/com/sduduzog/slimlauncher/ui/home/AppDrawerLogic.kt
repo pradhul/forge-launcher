@@ -41,4 +41,7 @@ object AppDrawerLogic {
     fun shouldShowKeyboard(openKeyboardOnDrawer: Boolean, drawerVisible: Boolean): Boolean {
         return openKeyboardOnDrawer && drawerVisible
     }
+
+    const val SEARCH_DEBOUNCE_MS = 80L
+    const val CATALOG_STALE_MS = 15_000L
 }

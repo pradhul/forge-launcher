@@ -126,6 +126,12 @@ class DrawerBlurLogicTest {
     }
 
     @Test
+    fun composeDoesNotReblurAPreparedSnapshot() {
+        assertThat(DrawerBlurLogic.shouldApplyComposeBlur(hasPreblurredBitmap = true)).isFalse()
+        assertThat(DrawerBlurLogic.shouldApplyComposeBlur(hasPreblurredBitmap = false)).isTrue()
+    }
+
+    @Test
     fun wallpaperColorsScrimIsStrongerThanTint() {
         assertThat(DrawerBlurLogic.fallbackScrimAlpha(0))
             .isGreaterThan(DrawerBlurLogic.tintAlpha(0))

@@ -6,21 +6,22 @@ import java.util.UUID
 
 class FileIconPackStore(private val rootDir: File) : IconPackStore {
 
+    private val packCache = LinkedHashMap<String, IconPack>()
+    @Volatile
+    private var cacheWarm = false
+
     override fun listPacks(): List<IconPack> {
-        if (!rootDir.isDirectory) return emptyList()
-        return rootDir.listFiles()
-            ?.mapNotNull { dir ->
-                val manifest = File(dir, MANIFEST_NAME)
-                if (manifest.isFile) readManifest(manifest) else null
-            }
-            ?.sortedByDescending { it.createdAtMillis }
-            .orEmpty()
+        return synchronized(this) {
+            ensureCacheLocked()
+            packCache.values.sortedByDescending { it.createdAtMillis }
+        }
     }
 
     override fun getPack(id: String): IconPack? {
-        val manifest = File(packDir(id), MANIFEST_NAME)
-        if (!manifest.isFile) return null
-        return readManifest(manifest)
+        return synchronized(this) {
+            ensureCacheLocked()
+            packCache[id]
+        }
     }
 
     override fun createPack(name: String, stylePrompt: String, createdAtMillis: Long): IconPack {
@@ -83,6 +84,7 @@ class FileIconPackStore(private val rootDir: File) : IconPackStore {
 
     override fun deletePack(id: String) {
         packDir(id).deleteRecursively()
+        synchronized(this) { packCache.remove(id) }
     }
 
     override fun getIconFile(packId: String, packageName: String): File? {
@@ -119,6 +121,21 @@ class FileIconPackStore(private val rootDir: File) : IconPackStore {
             tmp.copyTo(target, overwrite = true)
             tmp.delete()
         }
+        synchronized(this) { packCache[pack.id] = pack }
+    }
+
+    private fun ensureCacheLocked() {
+        if (cacheWarm) return
+        packCache.clear()
+        if (rootDir.isDirectory) {
+            rootDir.listFiles()?.forEach { dir ->
+                val manifest = File(dir, MANIFEST_NAME)
+                if (manifest.isFile) {
+                    readManifest(manifest)?.let { packCache[it.id] = it }
+                }
+            }
+        }
+        cacheWarm = true
     }
 
     private fun readManifest(file: File): IconPack? {

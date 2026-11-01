@@ -10,6 +10,7 @@ import android.graphics.drawable.Drawable
 import android.os.Process
 import android.os.UserManager
 import android.util.DisplayMetrics
+import android.util.LruCache
 import android.view.View
 import android.widget.ImageView
 import androidx.core.widget.ImageViewCompat
@@ -24,27 +25,33 @@ class AppIconResolver @Inject constructor(
     private val prefs: IconPreferences,
     private val stylizer: OnDeviceIconStylizer
 ) {
+    private val bitmaps = LruCache<String, Bitmap>(IconCacheLogic.MAX_ENTRIES)
 
     fun shouldShowIcons(): Boolean = prefs.showIcons
+
+    fun evictCache() {
+        synchronized(bitmaps) { bitmaps.evictAll() }
+    }
 
     fun resolveDrawable(
         packageName: String,
         activityName: String,
-        userSerial: Long
+        userSerial: Long,
+        allowStyle: Boolean = true
     ): Drawable {
-        val packs = store.listPacks()
-        val applied = IconApplyLogic.appliedPackOrNull(prefs.appliedPackId, packs)
+        val applied = appliedPack()
         // Always render an icon (pack or stock). A persisted "toggle icons off"
         // must not blank the whole launcher.
         return when (IconApplyLogic.resolve(true, applied, packageName)) {
             ResolvedIcon.Hidden -> fallbackIcon()
             is ResolvedIcon.Pack -> decodePackIcon(applied!!.id, packageName)
-                ?: styledFallback(applied, packageName, activityName, userSerial)
-            is ResolvedIcon.PackFallback -> styledFallback(
+                ?: styleOrStock(applied, packageName, activityName, userSerial, allowStyle)
+            is ResolvedIcon.PackFallback -> styleOrStock(
                 applied!!,
                 packageName,
                 activityName,
-                userSerial
+                userSerial,
+                allowStyle
             )
             ResolvedIcon.Stock -> loadStockIcon(packageName, activityName, userSerial)
                 ?: fallbackIcon()
@@ -55,17 +62,22 @@ class AppIconResolver @Inject constructor(
         packageName: String,
         activityName: String,
         userSerial: Long,
-        size: Int = ICON_PX
+        size: Int = ICON_PX,
+        allowStyle: Boolean = true
     ): Bitmap {
+        val key = cacheKey(packageName, activityName, userSerial, size)
+        synchronized(bitmaps) { bitmaps.get(key) }?.let { return it }
         val bitmap = IconRasterizer.toBitmap(
-            resolveDrawable(packageName, activityName, userSerial),
+            resolveDrawable(packageName, activityName, userSerial, allowStyle),
             size
         )
-        return if (IconRasterizer.hasVisiblePixels(bitmap)) {
+        val visible = if (IconRasterizer.hasVisiblePixels(bitmap)) {
             bitmap
         } else {
             IconRasterizer.letterTile(packageName, size)
         }
+        synchronized(bitmaps) { bitmaps.put(key, visible) }
+        return visible
     }
 
     fun bind(
@@ -84,8 +96,48 @@ class AppIconResolver @Inject constructor(
         imageView.adjustViewBounds = false
         imageView.setImageDrawable(null)
         imageView.setImageBitmap(
-            resolveBitmap(packageName, activityName, userSerial, ICON_PX)
+            resolveBitmap(
+                packageName,
+                activityName,
+                userSerial,
+                ICON_PX,
+                allowStyle = false
+            )
         )
+    }
+
+    private fun appliedPack(): IconPack? {
+        return prefs.appliedPackId?.let { store.getPack(it) }
+    }
+
+    private fun cacheKey(
+        packageName: String,
+        activityName: String,
+        userSerial: Long,
+        size: Int
+    ): String {
+        val packId = prefs.appliedPackId
+        return IconCacheLogic.key(
+            packageName = packageName,
+            activityName = activityName,
+            userSerial = userSerial,
+            packId = packId,
+            themeHash = IconCacheLogic.themeHash(packId, prefs.wallpaperTheme),
+            size = size
+        )
+    }
+
+    private fun styleOrStock(
+        pack: IconPack,
+        packageName: String,
+        activityName: String,
+        userSerial: Long,
+        allowStyle: Boolean
+    ): Drawable {
+        if (!allowStyle) {
+            return loadStockIcon(packageName, activityName, userSerial) ?: fallbackIcon()
+        }
+        return styledFallback(pack, packageName, activityName, userSerial)
     }
 
     fun loadStockIcon(

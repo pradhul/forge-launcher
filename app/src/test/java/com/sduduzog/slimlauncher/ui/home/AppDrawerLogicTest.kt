@@ -49,6 +49,13 @@ class AppDrawerLogicTest {
     }
 
     @Test
+    fun searchDebounceIsShortAndCatalogStaleIsSeconds() {
+        assertThat(AppDrawerLogic.SEARCH_DEBOUNCE_MS).isAtLeast(50L)
+        assertThat(AppDrawerLogic.SEARCH_DEBOUNCE_MS).isAtMost(150L)
+        assertThat(AppDrawerLogic.CATALOG_STALE_MS).isAtLeast(5_000L)
+    }
+
+    @Test
     fun keyboardOpensOnlyWhenSettingOnAndDrawerVisible() {
         assertThat(AppDrawerLogic.shouldShowKeyboard(false, true)).isFalse()
         assertThat(AppDrawerLogic.shouldShowKeyboard(true, false)).isFalse()

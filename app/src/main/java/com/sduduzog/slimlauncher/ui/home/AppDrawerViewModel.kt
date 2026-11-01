@@ -1,10 +1,12 @@
 package com.sduduzog.slimlauncher.ui.home
 
 import android.graphics.Bitmap
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sduduzog.slimlauncher.data.model.App
 import com.sduduzog.slimlauncher.icons.AppIconResolver
+import com.sduduzog.slimlauncher.icons.IconCacheLogic
 import com.sduduzog.slimlauncher.icons.IconPackGenerator
 import com.sduduzog.slimlauncher.icons.IconPackStore
 import com.sduduzog.slimlauncher.icons.IconPreferences
@@ -23,6 +25,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -60,58 +63,85 @@ class AppDrawerViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _query = MutableStateFlow("")
+    private val _filterQuery = MutableStateFlow("")
     private val _installed = MutableStateFlow<List<App>>(emptyList())
     private val _home = MutableStateFlow<List<HomeApp>>(emptyList())
     private val _icons = MutableStateFlow<Map<String, Bitmap>>(emptyMap())
     private val _backdrop = MutableStateFlow<Bitmap?>(null)
     private val _crossWindowBlur = MutableStateFlow(false)
     private var reloadJob: Job? = null
+    private var queryJob: Job? = null
+    @Volatile
+    private var lastInstalledMs = 0L
+
+    private data class DrawerCatalog(
+        val apps: List<DrawerAppItem>,
+        val frequent: List<DrawerAppItem>,
+        val canRegenerate: Boolean,
+        val theme: PackTheme,
+        val openKeyboardOnOpen: Boolean
+    )
+
+    private val items = combine(_installed, _home, _icons) { installed, home, icons ->
+        val pins = home.map { it.packageName to it.userSerial }
+        installed.map { app ->
+            DrawerAppItem(
+                app = app,
+                pinned = AppDrawerLogic.isPinned(pins, app.packageName, app.userSerial),
+                icon = icons[iconKey(app)]
+            )
+        }
+    }.flowOn(Dispatchers.Default)
+
+    private val catalog = combine(items, _filterQuery, launchStore.revision, prefs.revision) {
+            all,
+            query,
+            _,
+            _
+        ->
+        val filtered = if (query.isBlank()) {
+            all
+        } else {
+            val allowed = AppDrawerLogic.filter(all.map { it.app }, query).toSet()
+            all.filter { it.app in allowed }
+        }
+        val byKey = all.associateBy { iconKey(it.app) }
+        val frequentKeys = launchStore.rankedKeys()
+        val frequent = if (LaunchRanker.shouldShowFrequent(query, frequentKeys)) {
+            frequentKeys.mapNotNull { byKey[it] }
+        } else {
+            emptyList()
+        }
+        DrawerCatalog(
+            apps = filtered,
+            frequent = frequent,
+            canRegenerate = !prefs.appliedPackId.isNullOrBlank() &&
+                store.getPack(prefs.appliedPackId!!) != null,
+            theme = themeController.active(),
+            openKeyboardOnOpen = prefs.openKeyboardOnDrawer
+        )
+    }.flowOn(Dispatchers.Default)
 
     val ui: StateFlow<AppDrawerUiState> = combine(
-        combine(_query, _installed, _home, _icons) { query, installed, home, icons ->
-            DrawerSnapshot(query, installed, home, icons)
-        },
-        prefs.revision,
-        launchStore.revision,
+        catalog,
+        _query,
         prefs.chrome,
         combine(_backdrop, _crossWindowBlur) { backdrop, crossWindow ->
             backdrop to crossWindow
         }
-    ) { snapshot, _, _, chrome, backdropAndBlur ->
-        val pins = snapshot.home.map { it.packageName to it.userSerial }
-        fun itemOf(app: App) = DrawerAppItem(
-            app = app,
-            pinned = AppDrawerLogic.isPinned(pins, app.packageName, app.userSerial),
-            icon = snapshot.icons[iconKey(app)]
-        )
-        val items = AppDrawerLogic.filter(snapshot.installed, snapshot.query).map(::itemOf)
-        val byKey = snapshot.installed.associateBy { iconKey(it) }
-        val frequentKeys = launchStore.rankedKeys()
-        val frequent = if (LaunchRanker.shouldShowFrequent(snapshot.query, frequentKeys)) {
-            frequentKeys.mapNotNull { byKey[it]?.let(::itemOf) }
-        } else {
-            emptyList()
-        }
+    ) { cat, query, chrome, backdropAndBlur ->
         AppDrawerUiState(
-            query = snapshot.query,
-            apps = items,
-            canRegenerate = !prefs.appliedPackId.isNullOrBlank() &&
-                store.getPack(prefs.appliedPackId!!) != null,
-            theme = themeController.active(),
-            frequent = frequent,
-            openKeyboardOnOpen = prefs.openKeyboardOnDrawer,
+            query = query,
+            apps = cat.apps,
+            canRegenerate = cat.canRegenerate,
+            theme = cat.theme,
+            frequent = cat.frequent,
+            openKeyboardOnOpen = cat.openKeyboardOnOpen,
             drawerBlurPercent = chrome.drawerBlurPercent,
             backdrop = backdropAndBlur.first,
             crossWindowBlur = backdropAndBlur.second
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppDrawerUiState())
-
-    private data class DrawerSnapshot(
-        val query: String,
-        val installed: List<App>,
-        val home: List<HomeApp>,
-        val icons: Map<String, Bitmap>
-    )
 
     private val homeObserver = androidx.lifecycle.Observer<List<HomeApp>> { list ->
         _home.value = list.orEmpty()
@@ -124,14 +154,16 @@ class AppDrawerViewModel @Inject constructor(
                 reloadJob?.cancel()
                 reloadJob = viewModelScope.launch {
                     delay(RELOAD_DEBOUNCE_MS)
-                    reloadIcons()
+                    iconResolver.evictCache()
+                    _icons.value = emptyMap()
+                    reloadIcons(force = true)
                 }
             }
         }
         viewModelScope.launch {
-            prefs.chrome.collect { refreshBackdrop(it.drawerBlurPercent) }
+            prefs.chrome.collect { refreshBackdrop(it.drawerBlurPercent, force = false) }
         }
-        refreshInstalled()
+        refreshInstalled(force = true)
         refreshBackdrop()
     }
 
@@ -141,33 +173,54 @@ class AppDrawerViewModel @Inject constructor(
     }
 
     fun setCrossWindowBlur(enabled: Boolean) {
+        if (_crossWindowBlur.value == enabled) return
         _crossWindowBlur.value = enabled
     }
 
     fun refreshBackdrop() {
-        snapshotter.invalidate()
-        refreshBackdrop(prefs.drawerBlurPercent)
+        refreshBackdrop(prefs.drawerBlurPercent, force = false)
     }
 
-    private fun refreshBackdrop(percent: Int) {
+    private fun refreshBackdrop(percent: Int, force: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
+            if (force) snapshotter.invalidate()
             _backdrop.value = snapshotter.blurred(percent)
         }
     }
 
-    fun refreshInstalled() {
+    fun refreshInstalled(force: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
+            val now = SystemClock.uptimeMillis()
+            if (!force &&
+                !IconCacheLogic.shouldRefreshCatalog(
+                    lastLoadMs = lastInstalledMs,
+                    nowMs = now,
+                    staleAfterMs = AppDrawerLogic.CATALOG_STALE_MS,
+                    hasCache = _installed.value.isNotEmpty()
+                )
+            ) {
+                reloadIcons(force = false)
+                return@launch
+            }
             val apps = installedAppsQuery.load()
-            _installed.value = apps
+            lastInstalledMs = now
+            if (apps != _installed.value) {
+                _installed.value = apps
+            }
             prefs.appliedPackId?.let { packId ->
                 store.getPack(packId)?.let { generator.fillMissing(it, apps) }
             }
-            reloadIcons()
+            reloadIcons(force)
         }
     }
 
     fun onQueryChange(value: String) {
         _query.value = value
+        queryJob?.cancel()
+        queryJob = viewModelScope.launch {
+            delay(AppDrawerLogic.SEARCH_DEBOUNCE_MS)
+            _filterQuery.value = value
+        }
     }
 
     fun recordLaunch(app: App) {
@@ -181,17 +234,29 @@ class AppDrawerViewModel @Inject constructor(
         generator.regenerate(packId, app)
     }
 
-    private suspend fun reloadIcons() {
+    private suspend fun reloadIcons(force: Boolean) {
         val apps = _installed.value
+        val existing = _icons.value
+        val wanted = apps.map { iconKey(it) }
+        val missing = if (force) {
+            wanted
+        } else {
+            IconCacheLogic.missingKeys(existing.keys, wanted)
+        }
+        if (missing.isEmpty()) return
+        val missingSet = missing.toSet()
         val loaded = withContext(Dispatchers.IO) {
-            val next = LinkedHashMap<String, Bitmap>(apps.size)
+            val next = if (force) LinkedHashMap<String, Bitmap>(apps.size) else LinkedHashMap(existing)
             for (app in apps) {
+                val key = iconKey(app)
+                if (key !in missingSet) continue
                 try {
-                    next[iconKey(app)] = iconResolver.resolveBitmap(
+                    next[key] = iconResolver.resolveBitmap(
                         app.packageName,
                         app.activityName,
                         app.userSerial,
-                        ICON_PX
+                        ICON_PX,
+                        allowStyle = true
                     )
                 } catch (_: Exception) {
                     // Keep going so one bad icon cannot blank the drawer.

@@ -25,10 +25,25 @@ class IconPreferences(private val prefs: SharedPreferences) {
             // Toggle Icons was removed. Icons are always drawn.
         }
 
+    @Volatile
+    private var appliedPackIdCache: String? = UNSET_STRING
+    @Volatile
+    private var wallpaperThemeCache: PackTheme? = UNSET_THEME
+    @Volatile
+    private var openKeyboardCache: Boolean? = null
+
     var appliedPackId: String?
-        get() = prefs.getString(KEY_APPLIED_PACK_ID, null)?.takeIf { it.isNotBlank() }
+        get() {
+            val cached = appliedPackIdCache
+            if (cached !== UNSET_STRING) return cached
+            val value = prefs.getString(KEY_APPLIED_PACK_ID, null)?.takeIf { it.isNotBlank() }
+            appliedPackIdCache = value
+            return value
+        }
         set(value) {
-            prefs.edit { putString(KEY_APPLIED_PACK_ID, value) }
+            val next = value?.takeIf { it.isNotBlank() }
+            prefs.edit { putString(KEY_APPLIED_PACK_ID, next) }
+            appliedPackIdCache = next
             notifyIconsChanged()
         }
 
@@ -85,16 +100,23 @@ class IconPreferences(private val prefs: SharedPreferences) {
         }
 
     var wallpaperTheme: PackTheme?
-        get() = PackTheme.fromJson(
-            prefs.getString(KEY_WALLPAPER_THEME, null)?.let { raw ->
-                runCatching { JSONObject(raw) }.getOrNull()
-            }
-        )
+        get() {
+            val cached = wallpaperThemeCache
+            if (cached !== UNSET_THEME) return cached
+            val parsed = PackTheme.fromJson(
+                prefs.getString(KEY_WALLPAPER_THEME, null)?.let { raw ->
+                    runCatching { JSONObject(raw) }.getOrNull()
+                }
+            )
+            wallpaperThemeCache = parsed
+            return parsed
+        }
         set(value) {
             prefs.edit {
                 if (value == null) remove(KEY_WALLPAPER_THEME)
                 else putString(KEY_WALLPAPER_THEME, value.toJson().toString())
             }
+            wallpaperThemeCache = value
             notifyIconsChanged()
         }
 
@@ -123,9 +145,15 @@ class IconPreferences(private val prefs: SharedPreferences) {
         }
 
     var openKeyboardOnDrawer: Boolean
-        get() = prefs.getBoolean(KEY_OPEN_KEYBOARD, false)
+        get() {
+            openKeyboardCache?.let { return it }
+            val value = prefs.getBoolean(KEY_OPEN_KEYBOARD, false)
+            openKeyboardCache = value
+            return value
+        }
         set(value) {
             prefs.edit { putBoolean(KEY_OPEN_KEYBOARD, value) }
+            openKeyboardCache = value
             notifyIconsChanged()
         }
 
@@ -221,5 +249,13 @@ class IconPreferences(private val prefs: SharedPreferences) {
         const val KEY_LAST_PALETTE = "key_last_applied_palette"
         const val KEY_HOME_FADE = "key_home_fade_percent"
         const val KEY_DRAWER_BLUR = "key_drawer_blur_percent"
+        private val UNSET_STRING: String? = String()
+        private val UNSET_THEME = PackTheme(
+            background = 0x00000001,
+            backgroundEnd = 0x00000002,
+            onBackground = 0x00000003,
+            accent = 0x00000004,
+            onAccent = 0x00000005
+        )
     }
 }

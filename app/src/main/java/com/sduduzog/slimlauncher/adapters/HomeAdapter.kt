@@ -5,6 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.icons.AppIconResolver
@@ -15,10 +16,14 @@ class HomeAdapter(
     private val listener: OnLaunchAppListener,
     private val iconResolver: AppIconResolver,
     private val onLongPress: (HomeApp) -> Unit = {}
-) : RecyclerView.Adapter<HomeAdapter.ViewHolder>() {
+) : ListAdapter<HomeApp, HomeAdapter.ViewHolder>(HomeAppDiff) {
 
-    private var apps: List<HomeApp> = listOf()
     private var labelColor: Int? = null
+
+    init {
+        setHasStableIds(true)
+        stateRestorationPolicy = StateRestorationPolicy.PREVENT_WHEN_EMPTY
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context)
@@ -27,10 +32,27 @@ class HomeAdapter(
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        val item = apps.elementAt(position)
+        bindAll(holder, getItem(position))
+    }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int, payloads: MutableList<Any>) {
+        if (payloads.isEmpty()) {
+            onBindViewHolder(holder, position)
+            return
+        }
+        val item = getItem(position)
+        if (payloads.contains(HomeAppDiff.PAYLOAD_LABEL_COLOR)) {
+            labelColor?.let { holder.mLabelView.setTextColor(it) }
+        }
+        if (payloads.contains(HomeAppDiff.PAYLOAD_ICON)) {
+            bindIcon(holder, item)
+        }
+    }
+
+    private fun bindAll(holder: ViewHolder, item: HomeApp) {
         holder.mLabelView.text = item.appNickname ?: item.appName
         labelColor?.let { holder.mLabelView.setTextColor(it) }
-        iconResolver.bind(holder.mIconView, item.packageName, item.activityName, item.userSerial)
+        bindIcon(holder, item)
         holder.itemView.setOnClickListener {
             listener.onLaunch(item, it)
         }
@@ -40,16 +62,30 @@ class HomeAdapter(
         }
     }
 
-    override fun getItemCount(): Int = apps.size
+    private fun bindIcon(holder: ViewHolder, item: HomeApp) {
+        iconResolver.bind(holder.mIconView, item.packageName, item.activityName, item.userSerial)
+    }
+
+    override fun getItemCount(): Int = currentList.size
+
+    override fun getItemId(position: Int): Long = HomeAppDiff.stableId(getItem(position))
 
     fun setItems(list: List<HomeApp>) {
-        this.apps = list
-        notifyDataSetChanged()
+        submitList(list)
     }
 
     fun setLabelColor(color: Int) {
+        if (labelColor == color) return
         labelColor = color
-        notifyDataSetChanged()
+        if (itemCount > 0) {
+            notifyItemRangeChanged(0, itemCount, HomeAppDiff.PAYLOAD_LABEL_COLOR)
+        }
+    }
+
+    fun rebindIcons() {
+        if (itemCount > 0) {
+            notifyItemRangeChanged(0, itemCount, HomeAppDiff.PAYLOAD_ICON)
+        }
     }
 
     inner class ViewHolder(mView: View) : RecyclerView.ViewHolder(mView) {

@@ -103,6 +103,8 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     ): View {
         _binding = HomeFragmentBinding.inflate(inflater, container, false)
         adapter = HomeAdapter(this, iconResolver, onLongPress = ::showHomeAppActions)
+        binding!!.homeFragmentList.setHasFixedSize(true)
+        binding!!.homeFragmentList.setItemViewCacheSize(16)
         binding!!.homeFragmentList.adapter = adapter
         viewModel.apps.observe(viewLifecycleOwner) { list ->
             homeApps = list.orEmpty()
@@ -201,8 +203,8 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.iconRevision.collect {
                     applyLauncherTheme()
-                    adapter.notifyDataSetChanged()
-                    if (!drawerOpen) drawerViewModel.refreshInstalled()
+                    adapter.rebindIcons()
+                    if (!drawerOpen) drawerViewModel.refreshInstalled(force = true)
                 }
             }
         }
@@ -243,10 +245,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         wallpaperThemeMonitor.onHostResume()
         if (!drawerOpen) {
             drawerViewModel.refreshBackdrop()
-            drawerViewModel.refreshInstalled()
-        }
-        if (::adapter.isInitialized) {
-            adapter.notifyDataSetChanged()
+            drawerViewModel.refreshInstalled(force = false)
         }
         val launch = activity?.intent
         if (com.sduduzog.slimlauncher.BuildConfig.DEBUG &&

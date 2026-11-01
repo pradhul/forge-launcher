@@ -55,7 +55,15 @@ class PackThemeController @Inject constructor(
     private val store: IconPackStore,
     private val extractor: PackThemeExtractor
 ) {
+    @Volatile
+    private var cached: PackTheme? = null
+    @Volatile
+    private var cachedRevision: Int = Int.MIN_VALUE
+
     fun active(): PackTheme {
+        val revision = prefs.revision.value
+        val hit = cached
+        if (hit != null && cachedRevision == revision) return hit
         val packId = prefs.appliedPackId
         val pack = packId?.let { extractor.ensureTheme(it) ?: store.getPack(it) }
         val source = ThemeSourceLogic.selected(
@@ -63,11 +71,14 @@ class PackThemeController @Inject constructor(
             bingEnabled = prefs.bingWallpaperEnabled,
             wallpaperSet = prefs.wallpaperPresent
         )
-        return ThemeSourceLogic.resolve(
+        val theme = ThemeSourceLogic.resolve(
             source = source,
             wallpaperTheme = prefs.wallpaperTheme,
             packTheme = pack?.theme,
             matchBackground = true
         )
+        cached = theme
+        cachedRevision = revision
+        return theme
     }
 }
