@@ -17,12 +17,23 @@ data class ThemedColors(val background: Int, val foreground: Int)
  */
 object ThemedIconPalette {
     const val MIN_CONTRAST = 4.5
+    const val MIN_SATURATION = 0.65
+
+    fun hue(c: Int): Double = toHsl(c)[0]
+
+    fun saturation(c: Int): Double = toHsl(c)[1]
+
+    /** RGB chroma (max-min channel), 0..255. */
+    fun chroma(c: Int): Int {
+        val r = c ushr 16 and 0xFF; val g = c ushr 8 and 0xFF; val b = c and 0xFF
+        return max(r, max(g, b)) - min(r, min(g, b))
+    }
 
     fun forTheme(theme: PackTheme): ThemedColors = colors(theme.accent, theme.darkSurface)
 
     fun colors(seed: Int, dark: Boolean): ThemedColors {
         var bgTone = if (dark) 22.0 else 90.0
-        var fgTone = if (dark) 88.0 else 25.0
+        var fgTone = if (dark) 82.0 else 33.0
         var bg = tone(seed, bgTone, if (dark) 0.45 else 0.35)
         var fg = tone(seed, fgTone, if (dark) 0.35 else 0.6)
         var guard = 0
@@ -45,7 +56,10 @@ object ThemedIconPalette {
     /** Seed hue, saturation scaled by [satScale], lightness solved to hit L* [target]. */
     fun tone(seed: Int, target: Double, satScale: Double): Int {
         val hsl = toHsl(seed)
-        val s = (hsl[1] * satScale).coerceIn(0.0, 0.85)
+        // Keep real chroma: wallpaper accents are often muted, and a low-L*
+        // tone with the seed's own saturation collapses to near-black/grey.
+        val floor = if (hsl[1] < 0.04) 0.0 else MIN_SATURATION
+        val s = max(hsl[1] * satScale, floor).coerceIn(0.0, 0.9)
         var lo = 0.0
         var hi = 1.0
         var best = fromHsl(hsl[0], s, 0.5)

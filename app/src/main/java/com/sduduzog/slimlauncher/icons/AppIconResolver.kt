@@ -14,6 +14,7 @@ import android.util.LruCache
 import android.view.View
 import android.widget.ImageView
 import androidx.core.widget.ImageViewCompat
+import com.sduduzog.slimlauncher.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -58,6 +59,27 @@ class AppIconResolver @Inject constructor(
         }
     }
 
+    fun request(
+        surface: IconSurface,
+        packageName: String,
+        activityName: String,
+        userSerial: Long
+    ): IconRequest {
+        val packId = prefs.appliedPackId
+        return IconCacheLogic.request(
+            surface = surface,
+            packageName = packageName,
+            activityName = activityName,
+            userSerial = userSerial,
+            packId = packId,
+            theme = prefs.wallpaperTheme,
+            style = prefs.iconStyle,
+            sizePx = iconPx()
+        )
+    }
+
+    fun cachedBitmap(key: String): Bitmap? = synchronized(bitmaps) { bitmaps.get(key) }
+
     fun resolveBitmap(
         packageName: String,
         activityName: String,
@@ -67,6 +89,8 @@ class AppIconResolver @Inject constructor(
     ): Bitmap {
         val key = cacheKey(packageName, activityName, userSerial, size)
         synchronized(bitmaps) { bitmaps.get(key) }?.let { return it }
+        val applied = appliedPack()
+        val readyBefore = applied != null && store.iconExists(applied.id, packageName)
         val bitmap = IconRasterizer.toBitmap(
             resolveDrawable(packageName, activityName, userSerial, allowStyle),
             size
@@ -76,7 +100,10 @@ class AppIconResolver @Inject constructor(
         } else {
             IconRasterizer.letterTile(packageName, size)
         }
-        synchronized(bitmaps) { bitmaps.put(key, visible) }
+        val readyAfter = applied != null && store.iconExists(applied.id, packageName)
+        if (IconCacheLogic.shouldCache(applied != null, readyBefore || readyAfter, styled = false)) {
+            synchronized(bitmaps) { bitmaps.put(key, visible) }
+        }
         return visible
     }
 
@@ -94,17 +121,37 @@ class AppIconResolver @Inject constructor(
         imageView.colorFilter = null
         imageView.scaleType = ImageView.ScaleType.FIT_CENTER
         imageView.adjustViewBounds = false
-        imageView.setImageDrawable(null)
-        imageView.setImageBitmap(
-            resolveBitmap(
-                packageName,
-                activityName,
-                userSerial,
-                iconPx(),
-                allowStyle = false
+        // Same request (style, palette, size, cache) as the drawer.
+        val req = request(IconSurface.HOME, packageName, activityName, userSerial)
+        imageView.setTag(R.id.forge_icon_request, req.key)
+        cachedBitmap(req.key)?.let {
+            imageView.setImageBitmap(it)
+            return
+        }
+        val pack = appliedPack()
+        if (pack == null || store.iconExists(pack.id, packageName)) {
+            // Cheap (stock or already-generated pack PNG): bind synchronously.
+            imageView.setImageBitmap(
+                resolveBitmap(packageName, activityName, userSerial, req.sizePx, allowStyle = req.allowStyle)
             )
-        )
+            return
+        }
+        loader.execute {
+            val bmp = try {
+                resolveBitmap(packageName, activityName, userSerial, req.sizePx, allowStyle = req.allowStyle)
+            } catch (_: Exception) {
+                IconRasterizer.letterTile(packageName, req.sizePx)
+            }
+            main.post {
+                if (imageView.getTag(R.id.forge_icon_request) == req.key) {
+                    imageView.setImageBitmap(bmp)
+                }
+            }
+        }
     }
+
+    private val loader = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
 
     fun iconPx(): Int = IconSizing.devicePx(context)
 
@@ -124,7 +171,7 @@ class AppIconResolver @Inject constructor(
             activityName = activityName,
             userSerial = userSerial,
             packId = packId,
-            themeHash = IconCacheLogic.themeHash(packId, prefs.wallpaperTheme),
+            themeHash = IconCacheLogic.themeHash(packId, prefs.wallpaperTheme, prefs.iconStyle),
             size = size
         )
     }

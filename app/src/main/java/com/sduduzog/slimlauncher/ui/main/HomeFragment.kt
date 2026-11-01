@@ -243,6 +243,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         updateClock()
         applyLauncherTheme()
         wallpaperThemeMonitor.onHostResume()
+        adapter.rebindIcons()
         if (!drawerOpen) {
             drawerViewModel.refreshBackdrop()
             drawerViewModel.refreshInstalled(force = false)
