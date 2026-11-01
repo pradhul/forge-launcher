@@ -66,14 +66,15 @@ class WallpaperPackCoordinator @Inject constructor(
             }
             return
         }
-        val key = if (bitmap != null) {
+        val artistic = bitmap != null && prefs.artisticIconStyle
+        val key = if (artistic) {
             WallpaperPackLogic.cacheKey(
-                "bitmap:$paletteKey",
+                "${WallpaperPackLogic.RENDER_VERSION}:bitmap:$paletteKey",
                 WallpaperPackLogic.strengthHundredths(prefs.wallpaperStyleStrength)
             )
         } else {
             WallpaperPackLogic.cacheKey(
-                "palette:$paletteKey",
+                "${WallpaperPackLogic.RENDER_VERSION}:palette:$paletteKey",
                 WallpaperPackLogic.strengthHundredths(prefs.wallpaperStyleStrength)
             )
         }
@@ -92,7 +93,7 @@ class WallpaperPackCoordinator @Inject constructor(
             return
         }
         inFlightKey = key
-        val pack = if (bitmap != null) {
+        val pack = if (artistic && bitmap != null) {
             val styleBytes = ImageUtils.encodePng(downscaleStyle(bitmap))
             store.createPack(
                 PackCreateSpec(
@@ -136,6 +137,14 @@ class WallpaperPackCoordinator @Inject constructor(
         prefs.wallpaperStyleHash = null
         val theme = prefs.wallpaperTheme ?: return
         applyTheme(theme, prefs.lastAppliedPaletteKey ?: "styled", forgeBitmap(), force = true)
+    }
+
+    fun setArtisticStyle(enabled: Boolean) {
+        prefs.artisticIconStyle = enabled
+        prefs.wallpaperStyleHash = null
+        if (!prefs.wallpaperStyledIcons) return
+        val theme = prefs.wallpaperTheme ?: return
+        applyTheme(theme, prefs.lastAppliedPaletteKey ?: "artistic", forgeBitmap(), force = true)
     }
 
     fun setStrength(strength: Float) {

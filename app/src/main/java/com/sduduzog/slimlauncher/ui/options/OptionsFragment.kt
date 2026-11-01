@@ -17,6 +17,7 @@ import com.sduduzog.slimlauncher.diag.AboutDebugLog
 import com.sduduzog.slimlauncher.icons.IconPreferences
 import com.sduduzog.slimlauncher.icons.PackThemeController
 import com.sduduzog.slimlauncher.utils.BaseFragment
+import com.sduduzog.slimlauncher.wallpaper.WallpaperPackCoordinator
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -32,6 +33,9 @@ class OptionsFragment : BaseFragment() {
 
     @Inject
     lateinit var themeController: PackThemeController
+
+    @Inject
+    lateinit var wallpaperPackCoordinator: WallpaperPackCoordinator
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -50,6 +54,10 @@ class OptionsFragment : BaseFragment() {
         }
         binding!!.optionsFragmentOpenKeyboard.setOnClickListener {
             iconPreferences.openKeyboardOnDrawer = !iconPreferences.openKeyboardOnDrawer
+            syncToggles()
+        }
+        binding!!.optionsFragmentArtisticIcons.setOnClickListener {
+            setArtisticStyle(!iconPreferences.artisticIconStyle)
             syncToggles()
         }
         binding!!.optionsFragmentIconPacks.setOnClickListener(
@@ -98,6 +106,18 @@ class OptionsFragment : BaseFragment() {
         views.optionsFragmentOpenKeyboardSwitch.setOnCheckedChangeListener { _, checked ->
             iconPreferences.openKeyboardOnDrawer = checked
         }
+        views.optionsFragmentArtisticIconsSwitch.setOnCheckedChangeListener(null)
+        views.optionsFragmentArtisticIconsSwitch.isChecked = iconPreferences.artisticIconStyle
+        views.optionsFragmentArtisticIconsSwitch.setOnCheckedChangeListener { _, checked ->
+            if (checked != iconPreferences.artisticIconStyle) setArtisticStyle(checked)
+        }
+    }
+
+    private fun setArtisticStyle(enabled: Boolean) {
+        iconPreferences.artisticIconStyle = enabled
+        Thread {
+            runCatching { wallpaperPackCoordinator.setArtisticStyle(enabled) }
+        }.start()
     }
 
     private fun updateFadeLabels() {
@@ -138,6 +158,7 @@ class OptionsFragment : BaseFragment() {
         views.optionsFragmentDrawerBlur.progressTintList = accent
         views.optionsFragmentDrawerBlur.thumbTintList = accent
         tintSwitch(views.optionsFragmentOpenKeyboardSwitch, theme.accent, theme.onBackground)
+        tintSwitch(views.optionsFragmentArtisticIconsSwitch, theme.accent, theme.onBackground)
     }
 
     private fun tintSwitch(switch: Switch, accent: Int, onBackground: Int) {

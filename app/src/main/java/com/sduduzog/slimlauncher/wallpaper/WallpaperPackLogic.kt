@@ -3,6 +3,9 @@ package com.sduduzog.slimlauncher.wallpaper
 object WallpaperPackLogic {
     const val PACK_ID = "wallpaper"
 
+    /** Bump when themed-icon rendering changes so saved pack PNGs regenerate. */
+    const val RENDER_VERSION = "r2"
+
     fun cacheKey(wallpaperId: String, strengthHundredths: Int): String {
         return "$wallpaperId:${strengthHundredths.coerceIn(0, 100)}"
     }

@@ -62,7 +62,7 @@ class AppIconResolver @Inject constructor(
         packageName: String,
         activityName: String,
         userSerial: Long,
-        size: Int = ICON_PX,
+        size: Int = iconPx(),
         allowStyle: Boolean = true
     ): Bitmap {
         val key = cacheKey(packageName, activityName, userSerial, size)
@@ -100,11 +100,13 @@ class AppIconResolver @Inject constructor(
                 packageName,
                 activityName,
                 userSerial,
-                ICON_PX,
+                iconPx(),
                 allowStyle = false
             )
         )
     }
+
+    fun iconPx(): Int = IconSizing.devicePx(context)
 
     private fun appliedPack(): IconPack? {
         return prefs.appliedPackId?.let { store.getPack(it) }
@@ -210,10 +212,10 @@ class AppIconResolver @Inject constructor(
             store.saveIcon(pack.id, packageName, bytes)
             decodePackIcon(pack.id, packageName) ?: BitmapDrawable(
                 context.resources,
-                IconRasterizer.toBitmap(source, ICON_PX)
+                IconRasterizer.toBitmap(source, iconPx())
             )
         } catch (_: Exception) {
-            BitmapDrawable(context.resources, IconRasterizer.toBitmap(source, ICON_PX))
+            BitmapDrawable(context.resources, IconRasterizer.toBitmap(source, iconPx()))
         }
     }
 

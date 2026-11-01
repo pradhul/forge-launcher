@@ -7,6 +7,9 @@ package com.sduduzog.slimlauncher.icons
 object IconCacheLogic {
     const val MAX_ENTRIES = 256
 
+    /** Bump to drop bitmaps rendered by an older icon pipeline. */
+    const val KEY_VERSION = 2
+
     fun key(
         packageName: String,
         activityName: String,
@@ -15,7 +18,7 @@ object IconCacheLogic {
         themeHash: String,
         size: Int
     ): String {
-        return "$packageName\u0000$activityName\u0000$userSerial\u0000${packId.orEmpty()}\u0000$themeHash\u0000$size"
+        return "v$KEY_VERSION\u0000$packageName\u0000$activityName\u0000$userSerial\u0000${packId.orEmpty()}\u0000$themeHash\u0000$size"
     }
 
     fun themeHash(packId: String?, theme: PackTheme?): String {

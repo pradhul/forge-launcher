@@ -78,16 +78,14 @@ class OnDeviceIconStylizer @Inject constructor(
     }
 
     fun recolorWithPalette(source: Drawable, theme: PackTheme, strength: Float): ByteArray {
-        val plateColor = com.sduduzog.slimlauncher.wallpaper.ForgeThemeMapper.iconBackground(
-            theme.accent,
-            theme.darkSurface
-        )
-        val plate = compositeOnBackplate(source, ICON_SIZE, plateColor)
-        val w = plate.width
-        val h = plate.height
+        // Full-size icon (adaptive layers composed + masked, or the full legacy
+        // bitmap) at device icon size, then a light accent tint. No plate/inset.
+        val full = renderFullIcon(source, IconSizing.devicePx(context))
+        val w = full.width
+        val h = full.height
         val pixels = IntArray(w * h)
-        plate.getPixels(pixels, 0, w, 0, 0, w, h)
-        val processed = PaletteIconRecolor.recolor(pixels, w, h, theme, strength)
+        full.getPixels(pixels, 0, w, 0, 0, w, h)
+        val processed = ThemedIconTint.tint(pixels, theme.accent, strength)
         val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         out.setPixels(processed, 0, w, 0, 0, w, h)
         return ImageUtils.encodePng(out)
@@ -126,6 +124,30 @@ class OnDeviceIconStylizer @Inject constructor(
             Log.w(TAG, "Style transfer failed, using post-process only", error)
             null
         }
+    }
+
+    /**
+     * Draws the icon the way a stock launcher does: an AdaptiveIconDrawable is
+     * given full bounds so the system composes background+foreground and masks
+     * it to the device shape; legacy icons fill the whole square.
+     */
+    fun renderFullIcon(drawable: Drawable, size: Int): Bitmap {
+        val px = size.coerceAtLeast(1)
+        val bitmap = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val src = drawable.mutate()
+        if (src is BitmapDrawable && src.bitmap != null && !src.bitmap.isRecycled) {
+            canvas.drawBitmap(
+                src.bitmap,
+                null,
+                Rect(0, 0, px, px),
+                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            )
+        } else {
+            src.setBounds(0, 0, px, px)
+            src.draw(canvas)
+        }
+        return bitmap
     }
 
     fun compositeOnBackplate(drawable: Drawable, size: Int, backplateColor: Int): Bitmap {

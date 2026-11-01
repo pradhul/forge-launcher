@@ -103,6 +103,51 @@
                 android:focusable="false" />
         </LinearLayout>
 
+        <LinearLayout
+            android:id="@+id/options_fragment_artistic_icons"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="16dp"
+            android:paddingBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:paddingEnd="16dp">
+
+                <TextView
+                    android:id="@+id/options_fragment_artistic_icons_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/options_fragment_artistic_icons"
+                    android:textAppearance="@style/TextAppearance.AppCompat"
+                    android:textSize="@dimen/_20ssp" />
+
+                <TextView
+                    android:id="@+id/options_fragment_artistic_icons_desc"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="@string/options_fragment_artistic_icons_desc"
+                    android:textAppearance="@style/TextAppearance.AppCompat"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <Switch
+                android:id="@+id/options_fragment_artistic_icons_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clickable="false"
+                android:focusable="false" />
+        </LinearLayout>
+
         <TextView
             android:id="@+id/options_fragment_home_fade_label"
             android:layout_width="match_parent"

@@ -94,4 +94,6 @@
     <string name="remove_all_apps_dialog_message" translatable="false">"This action will not uninstall your apps."
     "It is just to confirm if you're clearing this list on purpose"</string>
 
+    <string name="options_fragment_artistic_icons">Artistic icon style</string>
+    <string name="options_fragment_artistic_icons_desc">Repaint wallpaper-themed icons with the on-device style-transfer look.</string>
 </resources>

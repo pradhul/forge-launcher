@@ -255,7 +255,7 @@ class AppDrawerViewModel @Inject constructor(
                         app.packageName,
                         app.activityName,
                         app.userSerial,
-                        ICON_PX,
+                        iconResolver.iconPx(),
                         allowStyle = true
                     )
                 } catch (_: Exception) {
@@ -270,7 +270,6 @@ class AppDrawerViewModel @Inject constructor(
     private fun iconKey(app: App) = AppDrawerLogic.itemKey(app)
 
     companion object {
-        private const val ICON_PX = AppIconResolver.ICON_PX
         private const val RELOAD_DEBOUNCE_MS = 250L
     }
 }
