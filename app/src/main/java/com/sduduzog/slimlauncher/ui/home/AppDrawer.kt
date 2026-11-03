@@ -587,7 +587,7 @@ data class RingState(
  * outside dismisses.
  */
 @Composable
-private fun RingMenuOverlay(
+fun RingMenuOverlay(
     state: RingState,
     onUpdate: (RingState) -> Unit,
     onAction: (RingAction) -> Unit,

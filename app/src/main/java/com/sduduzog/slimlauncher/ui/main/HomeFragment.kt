@@ -25,6 +25,15 @@ import android.view.View
 import android.view.ViewGroup
 import com.sduduzog.slimlauncher.diag.AboutDebugLog
 import com.sduduzog.slimlauncher.ui.home.DockLogic
+import com.sduduzog.slimlauncher.ui.home.DrawerAppItem
+import com.sduduzog.slimlauncher.ui.home.RingAction
+import com.sduduzog.slimlauncher.ui.home.RingHit
+import com.sduduzog.slimlauncher.ui.home.RingMenuOverlay
+import com.sduduzog.slimlauncher.ui.home.RingState
+import com.sduduzog.slimlauncher.widgets.PageSwipeLogic
+import com.sduduzog.slimlauncher.widgets.WidgetsPage
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.recyclerview.widget.RecyclerView
 import com.sduduzog.slimlauncher.ui.home.DrawerGestureLogic
 import com.sduduzog.slimlauncher.ui.home.DrawerIme
 import com.sduduzog.slimlauncher.ui.home.DrawerWindowLogic
@@ -96,6 +105,18 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     lateinit var wallpaperThemeMonitor: com.sduduzog.slimlauncher.wallpaper.WallpaperThemeMonitor
 
     private lateinit var receiver: BroadcastReceiver
+    private var widgetsPage: WidgetsPage? = null
+    private var widgetsOpen = false
+    private var dockRing by mutableStateOf<RingState?>(null)
+    private val pickWidget = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        widgetsPage?.onPickResult(it.resultCode == android.app.Activity.RESULT_OK, it.data)
+    }
+    private val bindWidget = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        widgetsPage?.onBindResult(it.resultCode == android.app.Activity.RESULT_OK)
+    }
+    private val configureWidget = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        widgetsPage?.onConfigureResult(it.resultCode == android.app.Activity.RESULT_OK)
+    }
     private val blurEnabledListener = java.util.function.Consumer<Boolean> { syncWindowBlur() }
 
     override fun onCreateView(
@@ -104,7 +125,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         savedInstanceState: Bundle?
     ): View {
         _binding = HomeFragmentBinding.inflate(inflater, container, false)
-        adapter = HomeAdapter(this, iconResolver, onLongPress = ::showHomeAppActions)
+        adapter = HomeAdapter(this, iconResolver, onLongPress = ::showDockRing)
         binding!!.homeFragmentList.setHasFixedSize(true)
         binding!!.homeFragmentList.setItemViewCacheSize(16)
         binding!!.homeFragmentList.adapter = adapter
@@ -120,6 +141,8 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         binding!!.homeFragmentOverflow.setOnClickListener { showOverflowMenu(it) }
         binding!!.homeFragmentDrawerHandle.setOnClickListener { openDrawer() }
         setupDrawerOverlay()
+        setupWidgets()
+        setupDockRing()
         setupGestures()
         observeIconRevision()
         applyLauncherTheme()
@@ -213,7 +236,10 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                 if (swipeCommitted || drawerOpen) return
                 val dx = event.rawX - swipeDownX
                 val dy = event.rawY - swipeDownY
-                if (DrawerGestureLogic.shouldOpenOnMove(dy, dx, density)) {
+                if (PageSwipeLogic.opensWidgets(dx, dy, density)) {
+                    swipeCommitted = true
+                    openWidgets()
+                } else if (DrawerGestureLogic.shouldOpenOnMove(dy, dx, density)) {
                     swipeCommitted = true
                     openDrawer()
                 } else if (dy > DrawerGestureLogic.COMMIT_DP * 2 * density && DrawerGestureLogic.isVertical(dx, dy)) {
@@ -275,6 +301,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                 blurEnabledListener
             )
         }
+        widgetsPage?.start()
         receiver = ClockReceiver()
         ContextCompat.registerReceiver(
             requireContext(),
@@ -312,6 +339,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
             wm?.removeCrossWindowBlurEnabledListener(blurEnabledListener)
         }
         activity?.unregisterReceiver(receiver)
+        widgetsPage?.stop()
     }
 
     override fun onDestroyView() {
@@ -381,6 +409,121 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         try {
             startActivity(intent)
         } catch (_: Exception) {
+        }
+    }
+
+    private fun setupWidgets() {
+        val container = binding!!.homeFragmentWidgets
+        widgetsPage = WidgetsPage(requireActivity(), container, object : WidgetsPage.Callbacks {
+            override fun launchPick(intent: Intent) = pickWidget.launch(intent)
+            override fun launchBind(intent: Intent) = bindWidget.launch(intent)
+            override fun launchConfigure(intent: Intent) = configureWidget.launch(intent)
+            override fun onCloseRequested() = closeWidgets()
+        }).also { it.reload() }
+    }
+
+    private fun openWidgets() {
+        if (widgetsOpen || drawerOpen) return
+        val page = widgetsPage ?: return
+        val container = binding?.homeFragmentWidgets ?: return
+        widgetsOpen = true
+        page.applyTheme(themeController.active(), drawerViewModel.ui.value.backdrop)
+        container.visibility = View.VISIBLE
+        val w = container.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
+        container.translationX = w.toFloat()
+        container.animate().translationX(0f).setDuration(DrawerMotionLogic.ANIM_MS.toLong()).start()
+        setHomeChromeVisible(false)
+        syncWindowBlur()
+    }
+
+    private fun closeWidgets() {
+        if (!widgetsOpen) return
+        widgetsOpen = false
+        widgetsPage?.exitEdit()
+        val container = binding?.homeFragmentWidgets ?: return
+        container.animate().translationX(container.width.toFloat())
+            .setDuration(DrawerMotionLogic.ANIM_MS.toLong())
+            .withEndAction {
+                if (!widgetsOpen) {
+                    container.visibility = View.GONE
+                    setHomeChromeVisible(true)
+                }
+            }.start()
+        syncWindowBlur()
+    }
+
+    private fun setupDockRing() {
+        val ringView = binding!!.homeFragmentRing
+        ringView.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+        ringView.setContent {
+            val theme by drawerViewModel.ui.collectAsStateWithLifecycle()
+            val current = dockRing
+            ForgeTheme(theme = theme.theme, drawerScrim = true) {
+                if (current != null) {
+                    RingMenuOverlay(
+                        state = current,
+                        onUpdate = { dockRing = it },
+                        onAction = { action ->
+                            val app = current.item.app
+                            dockRing = null
+                            when (action) {
+                                RingAction.APP_INFO -> openAppInfo(app)
+                                RingAction.DOCK -> viewModel.unpin(app.packageName, app.userSerial)
+                                RingAction.UNINSTALL -> uninstall(app)
+                            }
+                        },
+                        onDismiss = { dockRing = null }
+                    )
+                }
+            }
+            ringView.visibility = if (current != null) View.VISIBLE else View.GONE
+        }
+        // Drag-select from the long-pressed dock icon: forward the rest of the gesture.
+        binding!!.homeFragmentList.addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
+            override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
+                return dockRing != null && e.actionMasked != MotionEvent.ACTION_DOWN
+            }
+
+            override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {
+                val ring = dockRing ?: return
+                val origin = IntArray(2).also { ringView.getLocationOnScreen(it) }
+                val p = androidx.compose.ui.geometry.Offset(e.rawX - origin[0], e.rawY - origin[1])
+                dockRing = when (e.actionMasked) {
+                    MotionEvent.ACTION_MOVE -> ring.copy(pointer = p)
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> ring.copy(pointer = p, released = true)
+                    else -> ring
+                }
+            }
+        })
+    }
+
+    private fun showDockRing(app: HomeApp, iconView: View) {
+        if (drawerOpen) return
+        val ringView = binding?.homeFragmentRing ?: return
+        val icon = IntArray(2).also { iconView.getLocationOnScreen(it) }
+        val origin = IntArray(2).also { ringView.getLocationOnScreen(it) }
+        val center = androidx.compose.ui.geometry.Offset(
+            icon[0] - origin[0] + iconView.width / 2f,
+            icon[1] - origin[1] + iconView.height / 2f
+        )
+        val bmp = (iconView as? android.widget.ImageView)?.drawable
+            ?.let { it as? android.graphics.drawable.BitmapDrawable }?.bitmap
+        iconView.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        ringView.visibility = View.VISIBLE
+        dockRing = RingState(
+            item = DrawerAppItem(App.from(app), pinned = true, icon = bmp),
+            center = center,
+            pointer = null,
+            hit = RingHit.Center
+        )
+    }
+
+    private fun uninstall(app: App) {
+        runCatching {
+            startActivity(
+                Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:${app.packageName}"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
         }
     }
 
@@ -580,7 +723,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         drawerViewModel.setCrossWindowBlur(enabled)
         val window = activity?.window ?: return
         val percent = if (DrawerWindowLogic.shouldApplyActivityBlur(
-                drawerOpen,
+                drawerOpen || widgetsOpen,
                 iconPreferences.drawerBlurPercent
             )
         ) {
@@ -607,6 +750,14 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     }
 
     override fun onBack(): Boolean {
+        if (dockRing != null) {
+            dockRing = null
+            return true
+        }
+        if (widgetsOpen) {
+            if (widgetsPage?.isEditing == true) widgetsPage?.exitEdit() else closeWidgets()
+            return true
+        }
         if (DrawerMotionLogic.backClosesDrawerOnly(drawerOpen)) {
             closeDrawer()
             return true
@@ -615,6 +766,8 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     }
 
     override fun onHome() {
+        dockRing = null
+        closeWidgets()
         closeDrawer()
     }
 

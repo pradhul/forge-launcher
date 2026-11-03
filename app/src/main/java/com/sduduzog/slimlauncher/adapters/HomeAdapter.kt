@@ -15,7 +15,7 @@ import com.sduduzog.slimlauncher.utils.OnLaunchAppListener
 class HomeAdapter(
     private val listener: OnLaunchAppListener,
     private val iconResolver: AppIconResolver,
-    private val onLongPress: (HomeApp) -> Unit = {}
+    private val onLongPress: (HomeApp, View) -> Unit = { _, _ -> }
 ) : ListAdapter<HomeApp, HomeAdapter.ViewHolder>(HomeAppDiff) {
 
     private var labelColor: Int? = null
@@ -57,7 +57,7 @@ class HomeAdapter(
             listener.onLaunch(item, it)
         }
         holder.itemView.setOnLongClickListener {
-            onLongPress(item)
+            onLongPress(item, holder.mIconView)
             true
         }
     }
