@@ -24,6 +24,8 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import com.sduduzog.slimlauncher.diag.AboutDebugLog
+import com.sduduzog.slimlauncher.ui.home.DockLogic
+import com.sduduzog.slimlauncher.ui.home.DrawerGestureLogic
 import com.sduduzog.slimlauncher.ui.home.DrawerIme
 import com.sduduzog.slimlauncher.ui.home.DrawerWindowLogic
 import android.widget.PopupWindow
@@ -108,7 +110,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         binding!!.homeFragmentList.adapter = adapter
         viewModel.apps.observe(viewLifecycleOwner) { list ->
             homeApps = list.orEmpty()
-            adapter.setItems(homeApps)
+            adapter.setItems(DockLogic.slots(homeApps))
             if (!drawerOpen) {
                 binding!!.homeFragmentEmpty.isVisible = homeApps.isEmpty()
             }
@@ -139,7 +141,17 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                         launchInstalled(app)
                         closeDrawer()
                     },
-                    onPin = { viewModel.pin(it) },
+                    onPin = { app ->
+                        if (DockLogic.canAdd(homeApps.size)) {
+                            viewModel.pin(app)
+                        } else {
+                            android.widget.Toast.makeText(
+                                requireContext(),
+                                R.string.home_dock_full,
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    },
                     onUnpin = { viewModel.unpin(it.packageName, it.userSerial) },
                     onAppInfo = ::openAppInfo,
                     onRegenerate = drawerViewModel::regenerate,
@@ -151,52 +163,80 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     }
 
     private fun setupGestures() {
-        val fling = object : GestureDetector.SimpleOnGestureListener() {
-            override fun onDown(e: MotionEvent): Boolean = true
+        val density = resources.displayMetrics.density
+        val longPress = GestureDetectorCompat(
+            requireContext(),
+            object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: MotionEvent): Boolean = true
+                override fun onLongPress(e: MotionEvent) {
+                    if (!drawerOpen && !swipeCommitted) showHomeMenu()
+                }
+            }
+        )
+        val swipe = View.OnTouchListener { _, event ->
+            handleHomeSwipe(event, density)
+            false
+        }
+        binding!!.root.setOnTouchListener { v, event ->
+            longPress.onTouchEvent(event)
+            swipe.onTouch(v, event)
+            true
+        }
+        binding!!.homeFragmentList.setOnTouchListener(swipe)
+    }
 
-            override fun onFling(
-                e1: MotionEvent?,
-                e2: MotionEvent,
-                velocityX: Float,
-                velocityY: Float
-            ): Boolean {
-                if (e1 == null || drawerOpen) return false
-                val up = e1.y - e2.y
-                if (DrawerMotionLogic.shouldOpenFromHomeSwipe(up, velocityX, velocityY)) {
+    private var swipeDownX = 0f
+    private var swipeDownY = 0f
+    private var swipeCommitted = false
+    private var swipeVelocity: android.view.VelocityTracker? = null
+
+    /** Commits on movement (not fling end): one short swipe up opens the drawer. */
+    private fun handleHomeSwipe(event: MotionEvent, density: Float) {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                swipeDownX = event.rawX
+                swipeDownY = event.rawY
+                swipeCommitted = false
+                swipeVelocity?.recycle()
+                swipeVelocity = android.view.VelocityTracker.obtain().also { it.addMovement(event) }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                swipeVelocity?.addMovement(event)
+                if (swipeCommitted || drawerOpen) return
+                val dx = event.rawX - swipeDownX
+                val dy = event.rawY - swipeDownY
+                if (DrawerGestureLogic.shouldOpenOnMove(dy, dx, density)) {
+                    swipeCommitted = true
                     openDrawer()
-                    return true
-                }
-                if (up < -DrawerMotionLogic.OPEN_DISTANCE && abs(velocityY) > abs(velocityX)) {
+                } else if (dy > DrawerGestureLogic.COMMIT_DP * 2 * density && DrawerGestureLogic.isVertical(dx, dy)) {
+                    swipeCommitted = true
                     expandNotificationShade()
-                    return true
                 }
-                return false
             }
-        }
-        val flingAndMenu = object : GestureDetector.SimpleOnGestureListener() {
-            override fun onDown(e: MotionEvent): Boolean = true
-            override fun onFling(
-                e1: MotionEvent?,
-                e2: MotionEvent,
-                velocityX: Float,
-                velocityY: Float
-            ): Boolean = fling.onFling(e1, e2, velocityX, velocityY)
-
-            override fun onLongPress(e: MotionEvent) {
-                if (!drawerOpen) showHomeMenu()
+            MotionEvent.ACTION_UP -> {
+                val tracker = swipeVelocity
+                tracker?.addMovement(event)
+                tracker?.computeCurrentVelocity(1000)
+                if (!swipeCommitted && !drawerOpen && tracker != null &&
+                    DrawerGestureLogic.shouldOpenOnRelease(
+                        event.rawY - swipeDownY,
+                        event.rawX - swipeDownX,
+                        tracker.yVelocity,
+                        density
+                    )
+                ) {
+                    openDrawer()
+                }
+                tracker?.recycle()
+                swipeVelocity = null
             }
-        }
-        val menuDetector = GestureDetectorCompat(requireContext(), flingAndMenu)
-        val flingDetector = GestureDetectorCompat(requireContext(), fling)
-        binding!!.root.setOnTouchListener { _, event ->
-            menuDetector.onTouchEvent(event)
-            false
-        }
-        binding!!.homeFragmentList.setOnTouchListener { _, event ->
-            flingDetector.onTouchEvent(event)
-            false
+            MotionEvent.ACTION_CANCEL -> {
+                swipeVelocity?.recycle()
+                swipeVelocity = null
+            }
         }
     }
+
 
     private fun observeIconRevision() {
         viewLifecycleOwner.lifecycleScope.launch {
@@ -289,26 +329,6 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                 intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 launchActivity(it, intent)
             } catch (_: ActivityNotFoundException) {
-            }
-        }
-        binding!!.homeFragmentCall.setOnClickListener { view ->
-            try {
-                val pm = context?.packageManager ?: return@setOnClickListener
-                val intent = Intent(Intent.ACTION_DIAL)
-                val componentName = intent.resolveActivity(pm)
-                if (componentName == null) launchActivity(view, intent) else {
-                    pm.getLaunchIntentForPackage(componentName.packageName)?.let {
-                        launchActivity(view, it)
-                    } ?: launchActivity(view, intent)
-                }
-            } catch (_: Exception) {
-            }
-        }
-        binding!!.homeFragmentCamera.setOnClickListener {
-            try {
-                val intent = Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)
-                launchActivity(it, intent)
-            } catch (_: Exception) {
             }
         }
     }
@@ -464,8 +484,6 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         binding?.homeFragmentOverflow?.imageTintList = ColorStateList.valueOf(theme.onBackground)
         adapter.setLabelColor(theme.onBackground)
         val accent = ColorStateList.valueOf(theme.accent)
-        binding?.homeFragmentCall?.imageTintList = accent
-        binding?.homeFragmentCamera?.imageTintList = accent
     }
 
     private fun openIconPacks() {
@@ -532,9 +550,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         views.homeFragmentTime.visibility = vis
         views.homeFragmentDate.visibility = vis
         views.homeFragmentList.visibility = vis
-        views.homeFragmentCall.visibility = vis
         views.homeFragmentDrawerHandle.visibility = vis
-        views.homeFragmentCamera.visibility = vis
         views.homeFragmentOverflow.visibility = vis
         views.homeFragmentEmpty.visibility = if (visible && homeApps.isEmpty()) {
             View.VISIBLE

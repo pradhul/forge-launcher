@@ -104,4 +104,5 @@
     <string name="icon_style_original_desc">Unchanged app icons, no wallpaper theming.</string>
     <string name="icon_style_artistic">Artistic</string>
     <string name="icon_style_artistic_desc">Repaint icons with the on-device style-transfer look.</string>
+    <string name="home_dock_full">Dock is full. Remove an app from the dock first.</string>
 </resources>

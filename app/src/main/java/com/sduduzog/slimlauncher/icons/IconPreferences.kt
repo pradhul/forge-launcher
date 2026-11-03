@@ -147,7 +147,7 @@ class IconPreferences(private val prefs: SharedPreferences) {
     var openKeyboardOnDrawer: Boolean
         get() {
             openKeyboardCache?.let { return it }
-            val value = prefs.getBoolean(KEY_OPEN_KEYBOARD, false)
+            val value = prefs.getBoolean(KEY_OPEN_KEYBOARD, true)
             openKeyboardCache = value
             return value
         }

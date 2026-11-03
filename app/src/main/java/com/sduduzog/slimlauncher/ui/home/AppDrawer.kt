@@ -7,7 +7,11 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -158,7 +162,6 @@ fun AppDrawer(
     onClose: () -> Unit
 ) {
     var selected by remember { mutableStateOf<DrawerAppItem?>(null) }
-    var drag by remember { mutableFloatStateOf(0f) }
     val gridState = rememberLazyGridState()
     val keyboard = LocalSoftwareKeyboardController.current
     val launchApp: (App) -> Unit = { app ->
@@ -169,47 +172,53 @@ fun AppDrawer(
         keyboard?.hide()
         onClose()
     }
-    val closeOnSwipeDown = Modifier.pointerInput(gridState) {
-        detectVerticalDragGestures(
-            onDragEnd = {
-                if (DrawerMotionLogic.shouldCloseFromDrawerSwipe(
-                        drag,
-                        !gridState.canScrollBackward
-                    )
-                ) {
-                    closeDrawer()
-                }
-                drag = 0f
-            },
-            onVerticalDrag = { _, amount -> drag += amount }
-        )
-    }
     val closeDrawerState = rememberUpdatedState(closeDrawer)
-    val closeWhenAtTop = remember(gridState) {
+    // Observe (never consume) every gesture on the drawer: a single swipe down
+    // that starts with the list at the top closes immediately.
+    val swipeToClose = Modifier.pointerInput(gridState) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            val startedAtTop = !gridState.canScrollBackward
+            val tracker = VelocityTracker()
+            tracker.addPosition(down.uptimeMillis, down.position)
+            var closed = false
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                tracker.addPosition(change.uptimeMillis, change.position)
+                val dx = change.position.x - down.position.x
+                val dy = change.position.y - down.position.y
+                if (!closed && DrawerGestureLogic.shouldCloseOnMove(dy, dx, startedAtTop, density)) {
+                    closed = true
+                    closeDrawerState.value()
+                }
+                if (!change.pressed) {
+                    if (!closed && DrawerGestureLogic.shouldCloseOnRelease(
+                            dy, dx, tracker.calculateVelocity().y, startedAtTop, density
+                        )
+                    ) {
+                        closeDrawerState.value()
+                    }
+                    break
+                }
+            }
+        }
+    }
+    // Swallow downward overscroll at the top so the stretch effect never
+    // eats the close gesture.
+    val noTopOverscroll = remember(gridState) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (available.y > 0 && !gridState.canScrollBackward) {
-                    val consume = DrawerWindowLogic.shouldConsumeCloseScroll(
-                        available.y,
-                        true,
-                        drag
-                    )
-                    drag += available.y
-                    if (DrawerMotionLogic.shouldCloseFromDrawerSwipe(drag, true)) {
-                        closeDrawerState.value()
-                        drag = 0f
-                    }
-                    return if (consume) Offset(0f, available.y) else Offset.Zero
-                }
-                if (available.y < 0) drag = 0f
-                return Offset.Zero
+                return if (available.y > 0 && !gridState.canScrollBackward) Offset(0f, available.y) else Offset.Zero
             }
         }
     }
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .nestedScroll(closeWhenAtTop)
+            .then(swipeToClose)
+            .nestedScroll(noTopOverscroll)
+            .imePadding()
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Box(
@@ -221,15 +230,8 @@ fun AppDrawer(
                     MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f),
                     MaterialTheme.shapes.small
                 )
-                .then(closeOnSwipeDown)
         )
-        DrawerSearchField(
-            visible = visible,
-            state = state,
-            onQueryChange = onQueryChange,
-            onLaunch = launchApp
-        )
-        Spacer(Modifier.height(12.dp))
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
         if (state.apps.isEmpty()) {
             Text(
                 if (state.query.isBlank()) "No launchable apps found." else "No apps match that search.",
@@ -258,7 +260,8 @@ fun AppDrawer(
                     }
                     items(
                         state.frequent,
-                        key = { "freq:${AppDrawerLogic.itemKey(it.app)}" }
+                        key = { "freq:${AppDrawerLogic.itemKey(it.app)}" },
+                        contentType = { "app" }
                     ) { item ->
                         DrawerGridCell(
                             item = item,
@@ -273,7 +276,11 @@ fun AppDrawer(
                         Spacer(Modifier.height(4.dp))
                     }
                 }
-                items(state.apps, key = { AppDrawerLogic.itemKey(it.app) }) { item ->
+                items(
+                    state.apps,
+                    key = { AppDrawerLogic.itemKey(it.app) },
+                    contentType = { "app" }
+                ) { item ->
                     DrawerGridCell(
                         item = item,
                         onClick = { launchApp(item.app) },
@@ -282,6 +289,15 @@ fun AppDrawer(
                 }
             }
         }
+        }
+        Spacer(Modifier.height(12.dp))
+        // Search sits at the bottom, right above the keyboard.
+        DrawerSearchField(
+            visible = visible,
+            state = state,
+            onQueryChange = onQueryChange,
+            onLaunch = launchApp
+        )
     }
     selected?.let { item ->
         AppActionDialog(
