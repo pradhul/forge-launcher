@@ -31,7 +31,7 @@ class ThemedIconPaletteTest {
     fun contrastMeetsWcagAA() {
         for (seed in seeds) for (dark in listOf(false, true)) {
             val c = ThemedIconPalette.colors(seed, dark)
-            assertThat(ThemedIconPalette.contrast(c.background, c.foreground)).isAtLeast(4.5)
+            assertThat(ThemedIconPalette.contrast(c.background, c.foreground)).isAtLeast(7.0)
         }
     }
 
@@ -45,8 +45,8 @@ class ThemedIconPaletteTest {
         assertThat(IconStyle.fromStorage(null)).isEqualTo(IconStyle.THEMED)
         assertThat(IconStyle.fromStorage(null, legacyArtistic = true)).isEqualTo(IconStyle.ARTISTIC)
         assertThat(IconStyle.fromStorage("tinted")).isEqualTo(IconStyle.TINTED)
-        assertThat(IconCacheLogic.KEY_VERSION).isEqualTo(4)
-        assertThat(com.sduduzog.slimlauncher.wallpaper.WallpaperPackLogic.RENDER_VERSION).isEqualTo("r4")
+        assertThat(IconCacheLogic.KEY_VERSION).isEqualTo(5)
+        assertThat(com.sduduzog.slimlauncher.wallpaper.WallpaperPackLogic.RENDER_VERSION).isEqualTo("r5")
     }
 }
 
@@ -68,17 +68,17 @@ class ThemedIconPaletteChromaTest {
             val h = ThemedIconPalette.hue(seed)
             assertThat(hueDiff(ThemedIconPalette.hue(c.foreground), h)).isAtMost(20.0)
             assertThat(hueDiff(ThemedIconPalette.hue(c.background), h)).isAtMost(20.0)
-            com.google.common.truth.Truth.assertWithMessage("seed=%s dark=%s fg=%s", Integer.toHexString(seed), dark, Integer.toHexString(c.foreground)).that(ThemedIconPalette.chroma(c.foreground)).isAtLeast(35)
+            com.google.common.truth.Truth.assertWithMessage("seed=%s dark=%s fg=%s", Integer.toHexString(seed), dark, Integer.toHexString(c.foreground)).that(ThemedIconPalette.chroma(c.foreground)).isAtLeast(if (dark) 20 else 35)
             assertThat(ThemedIconPalette.chroma(c.background)).isAtLeast(12)
-            assertThat(ThemedIconPalette.contrast(c.background, c.foreground)).isAtLeast(4.5)
+            assertThat(ThemedIconPalette.contrast(c.background, c.foreground)).isAtLeast(7.0)
         }
     }
 
     @Test
-    fun lightGlyphIsColouredDarkToneNotBlack() {
+    fun lightGlyphIsDeepColouredTone() {
         val c = ThemedIconPalette.colors(0xFF6B7F8E.toInt(), dark = false)
-        assertThat(ThemedIconPalette.lstar(c.foreground)).isAtLeast(25.0)
-        assertThat(ThemedIconPalette.lstar(c.foreground)).isAtMost(40.0)
+        assertThat(ThemedIconPalette.lstar(c.foreground)).isAtLeast(10.0)
+        assertThat(ThemedIconPalette.lstar(c.foreground)).isAtMost(28.0)
     }
 
     @Test
@@ -86,5 +86,22 @@ class ThemedIconPaletteChromaTest {
         val t = PackTheme(0xFF102030.toInt(), 0xFF203040.toInt(), -1, 0xFF4A7FB0.toInt(), 0xFF000000.toInt())
         val p = ThemedIconPalette.forTheme(t)
         assertThat(IconCacheLogic.themeHash("w", t, IconStyle.THEMED)).contains(Integer.toHexString(p.foreground))
+    }
+}
+
+class ThemedIconRichnessTest {
+    @Test
+    fun backgroundIsRichAndGlyphCrispAtSevenToOne() {
+        val seeds = intArrayOf(0xFFC8102E.toInt(), 0xFF3366AA.toInt(), 0xFF1DB954.toInt(), 0xFF8E6BB5.toInt(), 0xFF6B7F8E.toInt())
+        for (seed in seeds) for (dark in listOf(false, true)) {
+            val c = ThemedIconPalette.colors(seed, dark)
+            assertThat(ThemedIconPalette.contrast(c.background, c.foreground)).isAtLeast(7.0)
+            assertThat(ThemedIconPalette.saturation(c.background)).isAtLeast(0.6)
+            // fully opaque, no haze
+            assertThat(c.background ushr 24).isEqualTo(0xFF)
+            assertThat(c.foreground ushr 24).isEqualTo(0xFF)
+            if (dark) assertThat(ThemedIconPalette.lstar(c.foreground)).isAtLeast(88.0)
+            else assertThat(ThemedIconPalette.lstar(c.foreground)).isAtMost(25.0)
+        }
     }
 }

@@ -8,6 +8,19 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.border
+import kotlin.math.roundToInt
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -81,6 +94,7 @@ fun AppDrawerOverlay(
     onUnpin: (App) -> Unit,
     onAppInfo: (App) -> Unit,
     onRegenerate: (App) -> Unit,
+    onUninstall: (App) -> Unit = {},
     onClose: () -> Unit
 ) {
     val motion = remember {
@@ -144,6 +158,7 @@ fun AppDrawerOverlay(
             onUnpin = onUnpin,
             onAppInfo = onAppInfo,
             onRegenerate = onRegenerate,
+            onUninstall = onUninstall,
             onClose = onClose
         )
     }
@@ -159,8 +174,11 @@ fun AppDrawer(
     onUnpin: (App) -> Unit,
     onAppInfo: (App) -> Unit,
     onRegenerate: (App) -> Unit,
+    onUninstall: (App) -> Unit = {},
     onClose: () -> Unit
 ) {
+    var ring by remember { mutableStateOf<RingState?>(null) }
+    var rootOrigin by remember { mutableStateOf(Offset.Zero) }
     var selected by remember { mutableStateOf<DrawerAppItem?>(null) }
     val gridState = rememberLazyGridState()
     val keyboard = LocalSoftwareKeyboardController.current
@@ -213,9 +231,15 @@ fun AppDrawer(
             }
         }
     }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { rootOrigin = it.positionInRoot() }
+    ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .then(if (ring != null) Modifier.blur(18.dp) else Modifier)
             .then(swipeToClose)
             .nestedScroll(noTopOverscroll)
             .imePadding()
@@ -266,7 +290,12 @@ fun AppDrawer(
                         DrawerGridCell(
                             item = item,
                             onClick = { launchApp(item.app) },
-                            onLongClick = { selected = item }
+                            onRingStart = { center ->
+                                keyboard?.hide()
+                                ring = RingState(item, center - rootOrigin, null, RingHit.Center)
+                            },
+                            onRingDrag = { pos -> ring = ring?.copy(pointer = pos - rootOrigin) },
+                            onRingEnd = { ring = ring?.copy(released = true) }
                         )
                     }
                     item(
@@ -284,7 +313,12 @@ fun AppDrawer(
                     DrawerGridCell(
                         item = item,
                         onClick = { launchApp(item.app) },
-                        onLongClick = { selected = item }
+                        onRingStart = { center ->
+                            keyboard?.hide()
+                            ring = RingState(item, center - rootOrigin, null, RingHit.Center)
+                        },
+                        onRingDrag = { pos -> ring = ring?.copy(pointer = pos - rootOrigin) },
+                        onRingEnd = { ring = ring?.copy(released = true) }
                     )
                 }
             }
@@ -298,6 +332,23 @@ fun AppDrawer(
             onQueryChange = onQueryChange,
             onLaunch = launchApp
         )
+    }
+    ring?.let { current ->
+        RingMenuOverlay(
+            state = current,
+            onUpdate = { ring = it },
+            onAction = { action ->
+                val app = current.item.app
+                ring = null
+                when (action) {
+                    RingAction.APP_INFO -> onAppInfo(app)
+                    RingAction.DOCK -> if (current.item.pinned) onUnpin(app) else onPin(app)
+                    RingAction.UNINSTALL -> onUninstall(app)
+                }
+            },
+            onDismiss = { ring = null }
+        )
+    }
     }
     selected?.let { item ->
         AppActionDialog(
@@ -411,12 +462,36 @@ private fun DrawerSearchField(
 private fun DrawerGridCell(
     item: DrawerAppItem,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onRingStart: (Offset) -> Unit,
+    onRingDrag: (Offset) -> Unit,
+    onRingEnd: () -> Unit
 ) {
+    var iconCenter by remember { mutableStateOf(Offset.Zero) }
+    var cellOrigin by remember { mutableStateOf(Offset.Zero) }
+    val haptics = LocalHapticFeedback.current
+    val start by rememberUpdatedState(onRingStart)
+    val dragTo by rememberUpdatedState(onRingDrag)
+    val end by rememberUpdatedState(onRingEnd)
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .onGloballyPositioned { cellOrigin = it.positionInRoot() }
+            .pointerInput(item.app) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { offset ->
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        start(iconCenter)
+                        dragTo(cellOrigin + offset)
+                    },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        dragTo(cellOrigin + change.position)
+                    },
+                    onDragEnd = { end() },
+                    onDragCancel = { end() }
+                )
+            }
+            .combinedClickable(onClick = onClick)
             .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -425,7 +500,12 @@ private fun DrawerGridCell(
             Image(
                 bitmap = iconImage,
                 contentDescription = item.app.appName,
-                modifier = Modifier.size(AppDrawerGrid.ICON_DP.dp)
+                modifier = Modifier
+                    .size(AppDrawerGrid.ICON_DP.dp)
+                    .onGloballyPositioned {
+                        val b = it.boundsInRoot()
+                        iconCenter = b.center
+                    }
             )
         } else {
             Box(
@@ -490,4 +570,144 @@ private fun AppActionDialog(
             TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
+}
+
+data class RingState(
+    val item: DrawerAppItem,
+    val center: Offset,
+    val pointer: Offset?,
+    val hit: RingHit,
+    val released: Boolean = false,
+    val moved: Boolean = false
+)
+
+/**
+ * Radial long-press menu. Drag from the icon to an option and release to run
+ * it; release on the icon keeps the ring open for a tap; Cancel or tapping
+ * outside dismisses.
+ */
+@Composable
+private fun RingMenuOverlay(
+    state: RingState,
+    onUpdate: (RingState) -> Unit,
+    onAction: (RingAction) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val density = LocalDensity.current
+    val radius = with(density) { 132.dp.toPx() }
+    val bubble = 64.dp
+    val bubblePx = with(density) { bubble.toPx() }
+    val hitPx = with(density) { 52.dp.toPx() }
+    val accent = MaterialTheme.colorScheme.primary
+    val onAccent = MaterialTheme.colorScheme.onPrimary
+    val container = MaterialTheme.colorScheme.primaryContainer
+    val onContainer = MaterialTheme.colorScheme.onPrimaryContainer
+    var size by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    val layout = remember(state.center, size) {
+        RingMenuLogic.layout(
+            state.center.x, state.center.y, radius,
+            size.width.toFloat().coerceAtLeast(1f), size.height.toFloat().coerceAtLeast(1f),
+            with(density) { 48.dp.toPx() }, with(density) { 150.dp.toPx() }
+        )
+    }
+    val hit = state.pointer?.let {
+        RingMenuLogic.hitTest(layout, state.center.x, state.center.y, it.x, it.y, hitPx)
+    } ?: RingHit.Center
+    // Drag-release resolution.
+    LaunchedEffect(state.released) {
+        if (!state.released) return@LaunchedEffect
+        when (hit) {
+            is RingHit.Option -> onAction(hit.action)
+            RingHit.Cancel -> onDismiss()
+            RingHit.None -> onDismiss()
+            RingHit.Center -> onUpdate(state.copy(released = false, pointer = null))
+        }
+    }
+    val dismissTap by rememberUpdatedState(onDismiss)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { size = it.size }
+            .background(Color.Black.copy(alpha = 0.45f))
+            .pointerInput(layout) {
+                detectTapGestures { p ->
+                    when (val h = RingMenuLogic.hitTest(layout, state.center.x, state.center.y, p.x, p.y, hitPx)) {
+                        is RingHit.Option -> onAction(h.action)
+                        RingHit.Center -> Unit
+                        else -> dismissTap()
+                    }
+                }
+            }
+    ) {
+        state.pointer?.let { p ->
+            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                drawLine(
+                    color = Color.White.copy(alpha = 0.8f),
+                    start = state.center,
+                    end = p,
+                    strokeWidth = 6.dp.toPx(),
+                    cap = androidx.compose.ui.graphics.StrokeCap.Round
+                )
+            }
+        }
+        val iconImage = remember(state.item.icon) { state.item.icon?.asImageBitmap() }
+        val iconPx = with(density) { (AppDrawerGrid.ICON_DP * 1.2f).dp.toPx() }
+        iconImage?.let {
+            Image(
+                bitmap = it,
+                contentDescription = state.item.app.appName,
+                modifier = Modifier
+                    .offset { IntOffset((state.center.x - iconPx / 2).roundToInt(), (state.center.y - iconPx / 2).roundToInt()) }
+                    .size((AppDrawerGrid.ICON_DP * 1.2f).dp)
+            )
+        }
+        for ((action, p) in layout.options) {
+            val hot = hit is RingHit.Option && hit.action == action
+            val label = when (action) {
+                RingAction.APP_INFO -> "App info"
+                RingAction.DOCK -> if (state.item.pinned) "Remove from dock" else "Add to dock"
+                RingAction.UNINSTALL -> "Uninstall"
+            }
+            val glyph = when (action) {
+                RingAction.APP_INFO -> "i"
+                RingAction.DOCK -> if (state.item.pinned) "−" else "+"
+                RingAction.UNINSTALL -> "—"
+            }
+            val scale = if (hot) 1.18f else 1f
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.offset {
+                    IntOffset((p.x - bubblePx).roundToInt(), (p.y - bubblePx / 2).roundToInt())
+                }.size(width = bubble * 2, height = bubble + 28.dp)
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(bubble)
+                        .graphicsLayer { scaleX = scale; scaleY = scale }
+                        .background(if (hot) accent else container, CircleShape)
+                        .border(2.dp, accent, CircleShape)
+                ) {
+                    Text(glyph, fontSize = 24.sp, color = if (hot) onAccent else onContainer)
+                }
+                Text(label, fontSize = 13.sp, color = Color.White, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
+            }
+        }
+        val cancelHot = hit == RingHit.Cancel
+        val cw = with(density) { 132.dp.toPx() }
+        val ch = with(density) { 48.dp.toPx() }
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .offset { IntOffset((layout.cancel.x - cw / 2).roundToInt(), (layout.cancel.y - ch / 2).roundToInt()) }
+                .size(132.dp, 48.dp)
+                .background(
+                    if (cancelHot) Color.White.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.18f),
+                    CircleShape
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.7f), CircleShape)
+        ) {
+            Text("×  Cancel", color = if (cancelHot) Color.Black else Color.White, fontSize = 15.sp)
+        }
+    }
 }

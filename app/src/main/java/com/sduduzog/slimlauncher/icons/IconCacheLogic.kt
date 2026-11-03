@@ -8,7 +8,7 @@ object IconCacheLogic {
     const val MAX_ENTRIES = 256
 
     /** Bump to drop bitmaps rendered by an older icon pipeline. */
-    const val KEY_VERSION = 4
+    const val KEY_VERSION = 5
 
     fun key(
         packageName: String,

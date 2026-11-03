@@ -155,6 +155,14 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                     onUnpin = { viewModel.unpin(it.packageName, it.userSerial) },
                     onAppInfo = ::openAppInfo,
                     onRegenerate = drawerViewModel::regenerate,
+                    onUninstall = { app ->
+                        runCatching {
+                            startActivity(
+                                Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:${app.packageName}"))
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        }
+                    },
                     onClose = { closeDrawer() }
                 )
             }

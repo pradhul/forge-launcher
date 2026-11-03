@@ -16,8 +16,9 @@ data class ThemedColors(val background: Int, val foreground: Int)
  * dark = bg tone 22 / glyph tone 88. Contrast is pushed to WCAG >= 4.5.
  */
 object ThemedIconPalette {
-    const val MIN_CONTRAST = 4.5
-    const val MIN_SATURATION = 0.65
+    const val MIN_CONTRAST = 7.0
+    const val MIN_SATURATION = 0.70
+    const val BG_SATURATION = 0.80
 
     fun hue(c: Int): Double = toHsl(c)[0]
 
@@ -32,16 +33,19 @@ object ThemedIconPalette {
     fun forTheme(theme: PackTheme): ThemedColors = colors(theme.accent, theme.darkSurface)
 
     fun colors(seed: Int, dark: Boolean): ThemedColors {
-        var bgTone = if (dark) 22.0 else 90.0
-        var fgTone = if (dark) 82.0 else 33.0
-        var bg = tone(seed, bgTone, if (dark) 0.45 else 0.35)
-        var fg = tone(seed, fgTone, if (dark) 0.35 else 0.6)
+        // v23: richer, saturated plate + crisp glyph, >= 7:1 contrast.
+        var bgTone = if (dark) 28.0 else 84.0
+        var fgTone = if (dark) 92.0 else 20.0
+        fun bgOf(t: Double) = tone(seed, t, 1.6, BG_SATURATION)
+        fun fgOf(t: Double) = tone(seed, t, 1.2, MIN_SATURATION)
+        var bg = bgOf(bgTone)
+        var fg = fgOf(fgTone)
         var guard = 0
-        while (contrast(bg, fg) < MIN_CONTRAST && guard++ < 40) {
-            if (dark) { fgTone = min(100.0, fgTone + 1.5); bgTone = max(0.0, bgTone - 0.5) }
-            else { fgTone = max(0.0, fgTone - 1.5); bgTone = min(100.0, bgTone + 0.5) }
-            bg = tone(seed, bgTone, if (dark) 0.45 else 0.35)
-            fg = tone(seed, fgTone, if (dark) 0.35 else 0.6)
+        while (contrast(bg, fg) < MIN_CONTRAST && guard++ < 60) {
+            if (dark) { fgTone = min(99.0, fgTone + 1.0); bgTone = max(8.0, bgTone - 1.0) }
+            else { fgTone = max(4.0, fgTone - 1.0); bgTone = min(97.0, bgTone + 1.0) }
+            bg = bgOf(bgTone)
+            fg = fgOf(fgTone)
         }
         return ThemedColors(bg, fg)
     }
@@ -54,12 +58,12 @@ object ThemedIconPalette {
     }
 
     /** Seed hue, saturation scaled by [satScale], lightness solved to hit L* [target]. */
-    fun tone(seed: Int, target: Double, satScale: Double): Int {
+    fun tone(seed: Int, target: Double, satScale: Double, satFloor: Double = MIN_SATURATION): Int {
         val hsl = toHsl(seed)
         // Keep real chroma: wallpaper accents are often muted, and a low-L*
         // tone with the seed's own saturation collapses to near-black/grey.
-        val floor = if (hsl[1] < 0.04) 0.0 else MIN_SATURATION
-        val s = max(hsl[1] * satScale, floor).coerceIn(0.0, 0.9)
+        val floor = if (hsl[1] < 0.04) 0.0 else satFloor
+        val s = max(hsl[1] * satScale, floor).coerceIn(0.0, 0.95)
         var lo = 0.0
         var hi = 1.0
         var best = fromHsl(hsl[0], s, 0.5)
