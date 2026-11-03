@@ -4,7 +4,7 @@ object WallpaperPackLogic {
     const val PACK_ID = "wallpaper"
 
     /** Bump when themed-icon rendering changes so saved pack PNGs regenerate. */
-    const val RENDER_VERSION = "r3"
+    const val RENDER_VERSION = "r4"
 
     fun cacheKey(wallpaperId: String, strengthHundredths: Int): String {
         return "$wallpaperId:${strengthHundredths.coerceIn(0, 100)}"

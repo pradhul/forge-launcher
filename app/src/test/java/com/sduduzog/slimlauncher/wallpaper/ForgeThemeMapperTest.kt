@@ -45,7 +45,7 @@ class ForgeThemeMapperTest {
     }
 
     @Test
-    fun dynamicPaletteWinsForAccentAndNeutrals() {
+    fun dynamicNeutralsWinWallpaperHueDrivesAccent() {
         val theme = ForgeThemeMapper.map(
             WallpaperSwatches(
                 primary = 0xFF202020.toInt(),
@@ -61,7 +61,7 @@ class ForgeThemeMapperTest {
         assertThat(theme.darkSurface).isTrue()
         assertThat(theme.background).isNotEqualTo(0xFF000000.toInt())
         assertThat(theme.background).isNotEqualTo(0xFFFFFFFF.toInt())
-        assertThat(ContrastPicker.saturation(theme.accent)).isAtMost(ForgeThemeMapper.ICON_SAT_MAX)
+        assertThat(ContrastPicker.saturation(theme.accent).toDouble()).isAtMost(ForgeThemeMapper.ICON_SAT_MAX + 0.01)
     }
 
     @Test

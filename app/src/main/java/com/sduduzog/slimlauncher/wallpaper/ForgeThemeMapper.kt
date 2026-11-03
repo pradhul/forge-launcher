@@ -32,6 +32,12 @@ object ForgeThemeMapper {
     const val SURFACE_SAT_MIN = 0.10f
     const val SURFACE_SAT_MAX = 0.48f
     const val LIGHT_LUMINANCE = 0.45
+    const val MIN_HUE_VALUE = 40
+    /** Bump when map() output changes so stored themes are re-mapped. */
+    const val MAPPER_VERSION = "m2"
+    const val MIN_HUE_CHROMA = 28
+    val NEUTRAL_LIGHT = 0xFF8A8A8A.toInt()
+    val NEUTRAL_DARK = 0xFF5A5A5A.toInt()
 
     fun map(swatches: WallpaperSwatches): PackTheme {
         val darkSurface = isDarkSurface(swatches)
@@ -55,12 +61,13 @@ object ForgeThemeMapper {
             ContrastPicker.ensureLightBackground(opaque(endSeed), minLuminance = 0.70)
         }.let { clampSurface(it) }
 
-        val rawAccent = swatches.dynamicAccent1
-            ?: swatches.tertiary
-            ?: swatches.dynamicAccent2
-            ?: swatches.secondary
-            ?: seed
-        val accent = iconBackground(opaque(rawAccent), darkSurface)
+        val hueSeed = pickIconSeed(swatches)
+        val accent = if (hueSeed != null) {
+            iconBackground(opaque(hueSeed), darkSurface)
+        } else {
+            // No usable hue (all black/grey): stay neutral, never invent one.
+            if (darkSurface) NEUTRAL_DARK else NEUTRAL_LIGHT
+        }
         val onBackground = ContrastPicker.nudgeForeground(
             labelCandidate(darkSurface, swatches.supportsDarkText),
             background
@@ -78,6 +85,33 @@ object ForgeThemeMapper {
             seed = seed,
             darkSurface = darkSurface
         )
+    }
+
+    /**
+     * Hue source for icons/accent: the wallpaper's own colours in dominance
+     * order (WallpaperColors primary, secondary, tertiary), skipping near-black,
+     * near-white and grey swatches. Material You accents are only a last
+     * resort because they are hue-shifted / can follow a user-picked preset.
+     */
+    fun pickIconSeed(swatches: WallpaperSwatches): Int? {
+        val ordered = listOfNotNull(
+            swatches.primary,
+            swatches.secondary,
+            swatches.tertiary,
+            swatches.dynamicAccent1
+        )
+        return ordered.map { opaque(it) }.firstOrNull { isChromatic(it) }
+    }
+
+    fun isChromatic(color: Int): Boolean {
+        val r = color ushr 16 and 0xFF
+        val g = color ushr 8 and 0xFF
+        val b = color and 0xFF
+        val mx = maxOf(r, g, b)
+        val mn = minOf(r, g, b)
+        if (mx < MIN_HUE_VALUE) return false          // near-black
+        if (mn > 235) return false                     // near-white
+        return (mx - mn) >= MIN_HUE_CHROMA             // not grey
     }
 
     fun isDarkSurface(swatches: WallpaperSwatches): Boolean {
@@ -121,6 +155,7 @@ object ForgeThemeMapper {
     fun paletteKey(swatches: WallpaperSwatches): String {
         fun hex(color: Int?): String = color?.let { String.format("%08X", opaque(it)) } ?: "-"
         return listOf(
+            MAPPER_VERSION,
             swatches.source.logName,
             hex(swatches.primary),
             hex(swatches.secondary),

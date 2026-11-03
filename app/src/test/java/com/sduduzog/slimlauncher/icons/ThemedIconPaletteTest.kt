@@ -46,7 +46,7 @@ class ThemedIconPaletteTest {
         assertThat(IconStyle.fromStorage(null, legacyArtistic = true)).isEqualTo(IconStyle.ARTISTIC)
         assertThat(IconStyle.fromStorage("tinted")).isEqualTo(IconStyle.TINTED)
         assertThat(IconCacheLogic.KEY_VERSION).isEqualTo(4)
-        assertThat(com.sduduzog.slimlauncher.wallpaper.WallpaperPackLogic.RENDER_VERSION).isEqualTo("r3")
+        assertThat(com.sduduzog.slimlauncher.wallpaper.WallpaperPackLogic.RENDER_VERSION).isEqualTo("r4")
     }
 }
 
