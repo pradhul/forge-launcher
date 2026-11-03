@@ -468,6 +468,7 @@ private fun DrawerGridCell(
 ) {
     var iconCenter by remember { mutableStateOf(Offset.Zero) }
     var cellOrigin by remember { mutableStateOf(Offset.Zero) }
+    var cellCenter by remember { mutableStateOf(Offset.Zero) }
     val haptics = LocalHapticFeedback.current
     val start by rememberUpdatedState(onRingStart)
     val dragTo by rememberUpdatedState(onRingDrag)
@@ -475,12 +476,15 @@ private fun DrawerGridCell(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .onGloballyPositioned { cellOrigin = it.positionInRoot() }
+            .onGloballyPositioned {
+                cellOrigin = it.positionInRoot()
+                cellCenter = it.boundsInRoot().center
+            }
             .pointerInput(item.app) {
                 detectDragGesturesAfterLongPress(
                     onDragStart = { offset ->
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        start(iconCenter)
+                        start(if (iconCenter != Offset.Zero) iconCenter else cellCenter)
                         dragTo(cellOrigin + offset)
                     },
                     onDrag = { change, _ ->
@@ -593,6 +597,25 @@ fun RingMenuOverlay(
     onAction: (RingAction) -> Unit,
     onDismiss: () -> Unit
 ) {
+    // Lay out only once the real container size is known (never 0x0).
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+        val w = constraints.maxWidth
+        val h = constraints.maxHeight
+        if (RingMenuLogic.canLayout(w.toFloat(), h.toFloat())) {
+            RingMenuContent(state, w.toFloat(), h.toFloat(), onUpdate, onAction, onDismiss)
+        }
+    }
+}
+
+@Composable
+private fun RingMenuContent(
+    state: RingState,
+    widthPx: Float,
+    heightPx: Float,
+    onUpdate: (RingState) -> Unit,
+    onAction: (RingAction) -> Unit,
+    onDismiss: () -> Unit
+) {
     val density = LocalDensity.current
     val radius = with(density) { 132.dp.toPx() }
     val bubble = 64.dp
@@ -602,11 +625,10 @@ fun RingMenuOverlay(
     val onAccent = MaterialTheme.colorScheme.onPrimary
     val container = MaterialTheme.colorScheme.primaryContainer
     val onContainer = MaterialTheme.colorScheme.onPrimaryContainer
-    var size by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
-    val layout = remember(state.center, size) {
+    val layout = remember(state.center, widthPx, heightPx) {
         RingMenuLogic.layout(
             state.center.x, state.center.y, radius,
-            size.width.toFloat().coerceAtLeast(1f), size.height.toFloat().coerceAtLeast(1f),
+            widthPx, heightPx,
             with(density) { 48.dp.toPx() }, with(density) { 150.dp.toPx() }
         )
     }
@@ -627,7 +649,6 @@ fun RingMenuOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .onGloballyPositioned { size = it.size }
             .background(Color.Black.copy(alpha = 0.45f))
             .pointerInput(layout) {
                 detectTapGestures { p ->

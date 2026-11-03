@@ -486,7 +486,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
 
             override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {
                 val ring = dockRing ?: return
-                val origin = IntArray(2).also { ringView.getLocationOnScreen(it) }
+                val origin = IntArray(2).also { binding!!.root.getLocationOnScreen(it) }
                 val p = androidx.compose.ui.geometry.Offset(e.rawX - origin[0], e.rawY - origin[1])
                 dockRing = when (e.actionMasked) {
                     MotionEvent.ACTION_MOVE -> ring.copy(pointer = p)
@@ -501,7 +501,8 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         if (drawerOpen) return
         val ringView = binding?.homeFragmentRing ?: return
         val icon = IntArray(2).also { iconView.getLocationOnScreen(it) }
-        val origin = IntArray(2).also { ringView.getLocationOnScreen(it) }
+        // Ring view is GONE (never laid out) here; it fills the root, so use the root's origin.
+        val origin = IntArray(2).also { binding!!.root.getLocationOnScreen(it) }
         val center = androidx.compose.ui.geometry.Offset(
             icon[0] - origin[0] + iconView.width / 2f,
             icon[1] - origin[1] + iconView.height / 2f

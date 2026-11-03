@@ -43,3 +43,31 @@ class RingMenuLogicTest {
         assertThat(RingMenuLogic.hitTest(l, 540f, 1200f, 1000f, 2300f, 140f)).isEqualTo(RingHit.None)
     }
 }
+
+class RingMenuLogicSafetyTest {
+    @Test
+    fun zeroOrTinyContainerNeverThrows() {
+        for ((w, h) in listOf(0f to 0f, 1f to 1f, 100f to 80f, 0f to 2400f, 1080f to 0f)) {
+            val l = RingMenuLogic.layout(540f, 1200f, 360f, w, h, 130f, 410f)
+            assertThat(l.options).hasSize(3)
+            l.options.forEach {
+                assertThat(it.second.x.isNaN()).isFalse()
+                assertThat(it.second.y.isNaN()).isFalse()
+            }
+        }
+    }
+
+    @Test
+    fun canLayoutRejectsUnknownSizes() {
+        assertThat(RingMenuLogic.canLayout(0f, 0f)).isFalse()
+        assertThat(RingMenuLogic.canLayout(Float.POSITIVE_INFINITY, 2400f)).isFalse()
+        assertThat(RingMenuLogic.canLayout(1080f, 2400f)).isTrue()
+    }
+
+    @Test
+    fun reportedCrashInputsAreSafe() {
+        // maximum -105.8 < minimum 106.8 (container narrower than 2x margin)
+        val l = RingMenuLogic.layout(50f, 50f, 360f, 1f, 1f, 106.8f, 410f)
+        assertThat(l.options).hasSize(3)
+    }
+}
