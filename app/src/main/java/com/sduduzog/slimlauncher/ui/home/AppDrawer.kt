@@ -659,7 +659,9 @@ private fun RingMenuContent(
         RingMenuLogic.layout(
             state.center.x, state.center.y, radius,
             widthPx, heightPx,
-            with(density) { 48.dp.toPx() }, with(density) { 150.dp.toPx() }
+            with(density) { 8.dp.toPx() }, with(density) { 150.dp.toPx() },
+            bubble = bubblePx, label = with(density) { 28.dp.toPx() },
+            cancelW = with(density) { 132.dp.toPx() }, cancelH = with(density) { 48.dp.toPx() }
         )
     }
     val hit = state.pointer?.let {

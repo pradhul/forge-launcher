@@ -1,6 +1,7 @@
 package com.sduduzog.slimlauncher.ui.home
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import org.junit.Test
 
 class RingMenuLogicTest {
@@ -69,5 +70,65 @@ class RingMenuLogicSafetyTest {
         // maximum -105.8 < minimum 106.8 (container narrower than 2x margin)
         val l = RingMenuLogic.layout(50f, 50f, 360f, 1f, 1f, 106.8f, 410f)
         assertThat(l.options).hasSize(3)
+    }
+}
+
+/** Phone geometry: 1080x2400 @ 2.625 density, sizes exactly as in RingMenuOverlay. */
+class RingMenuEdgeLayoutTest {
+    private val dp = 2.625f
+    private val w = 1080f
+    private val h = 2400f
+    private val radius = 132 * dp
+    private val bubble = 64 * dp
+    private val label = 28 * dp
+    private val margin = 8 * dp
+    private val cancelW = 132 * dp
+    private val cancelH = 48 * dp
+    private val cols = listOf(135f, 405f, 675f, 945f)
+    private val rows = mapOf("top" to 300f, "middle" to 1200f, "bottom" to 2100f)
+
+    private fun lay(cx: Float, cy: Float) =
+        RingMenuLogic.layout(cx, cy, radius, w, h, margin, 150 * dp, bubble, label, cancelW, cancelH)
+
+    @Test
+    fun everyColumnAndRowFitsWithoutOverlap() {
+        for (cx in cols) for ((name, cy) in rows) {
+            val l = lay(cx, cy)
+            val where = "col x=$cx row=$name"
+            val rects = l.options.map { RingMenuLogic.itemRect(it.second, bubble, label) }
+            val cancel = RingMenuLogic.cancelRect(l.cancel, cancelW, cancelH)
+            rects.forEach { assertWithMessage("$where in bounds $it").that(it.inside(w, h, margin)).isTrue() }
+            assertWithMessage("$where cancel").that(cancel.inside(w, h, margin - 0.5f)).isTrue()
+            for (i in rects.indices) {
+                assertWithMessage("$where opt$i vs cancel").that(rects[i].overlaps(cancel)).isFalse()
+                for (j in i + 1 until rects.size) {
+                    assertWithMessage("$where opt$i vs opt$j").that(rects[i].overlaps(rects[j])).isFalse()
+                    val a = l.options[i].second; val b = l.options[j].second
+                    assertWithMessage("$where spacing").that(Math.hypot((a.x - b.x).toDouble(), (a.y - b.y).toDouble())).isAtLeast(bubble * 1.2)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun leftColumnFansRightAndRightColumnFansLeft() {
+        val left = lay(cols[0], 1200f)
+        left.options.forEach { assertThat(it.second.x).isGreaterThan(cols[0]) }
+        val right = lay(cols[3], 1200f)
+        right.options.forEach { assertThat(it.second.x).isLessThan(cols[3]) }
+    }
+
+    @Test
+    fun cancelBelowIconAndOnScreenForMiddleRows() {
+        for (cx in cols) {
+            val l = lay(cx, 1200f)
+            assertThat(l.cancel.y).isGreaterThan(1200f)
+            assertThat(l.flipped).isFalse()
+        }
+    }
+
+    @Test
+    fun topRowFlipsBelow() {
+        for (cx in cols) assertThat(lay(cx, 300f).flipped).isTrue()
     }
 }
