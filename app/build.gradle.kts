@@ -17,7 +17,7 @@ android {
         minSdk = 23
         targetSdk = 36
         versionName = "1.0.0"
-        versionCode = 74
+        versionCode = 75
         vectorDrawables { useSupportLibrary = true }
         ndk {
             abiFilters += ((project.findProperty("forgeAbi") as? String)?.takeIf { it.isNotBlank() }

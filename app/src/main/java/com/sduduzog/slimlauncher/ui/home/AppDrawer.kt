@@ -10,6 +10,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -208,10 +209,10 @@ fun AppDrawer(
                 val dy = change.position.y - down.position.y
                 if (!closed && DrawerGestureLogic.shouldCloseOnMove(dy, dx, startedAtTop, density)) {
                     closed = true
-                    closeDrawerState.value()
+                    if (ring == null) closeDrawerState.value()
                 }
                 if (!change.pressed) {
-                    if (!closed && DrawerGestureLogic.shouldCloseOnRelease(
+                    if (!closed && ring == null && DrawerGestureLogic.shouldCloseOnRelease(
                             dy, dx, tracker.calculateVelocity().y, startedAtTop, density
                         )
                     ) {
@@ -473,6 +474,7 @@ private fun DrawerGridCell(
     val start by rememberUpdatedState(onRingStart)
     val dragTo by rememberUpdatedState(onRingDrag)
     val end by rememberUpdatedState(onRingEnd)
+    val onClickState by rememberUpdatedState(onClick)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -481,21 +483,49 @@ private fun DrawerGridCell(
                 cellCenter = it.boundsInRoot().center
             }
             .pointerInput(item.app) {
-                detectDragGesturesAfterLongPress(
-                    onDragStart = { offset ->
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        start(if (iconCenter != Offset.Zero) iconCenter else cellCenter)
-                        dragTo(cellOrigin + offset)
-                    },
-                    onDrag = { change, _ ->
-                        change.consume()
-                        dragTo(cellOrigin + change.position)
-                    },
-                    onDragEnd = { end() },
-                    onDragCancel = { end() }
-                )
+                // One handler for tap + long-press + drag-select, so nothing else
+                // (clickable / grid scroll) can steal the long-press.
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val slop = viewConfiguration.touchSlop
+                    var outcome = CellPressLogic.Outcome.PENDING
+                    val timedOut = withTimeoutOrNull(CellPressLogic.LONG_PRESS_MS) {
+                        while (true) {
+                            val ev = awaitPointerEvent()
+                            val c = ev.changes.firstOrNull { it.id == down.id }
+                            if (c == null) { outcome = CellPressLogic.Outcome.SCROLL; break }
+                            val moved = (c.position - down.position).getDistance()
+                            outcome = CellPressLogic.classify(
+                                c.uptimeMillis - down.uptimeMillis, moved, !c.pressed, slop
+                            )
+                            if (c.isConsumed && c.pressed) outcome = CellPressLogic.Outcome.SCROLL
+                            if (outcome != CellPressLogic.Outcome.PENDING) {
+                                if (outcome == CellPressLogic.Outcome.TAP) c.consume()
+                                break
+                            }
+                        }
+                        true
+                    } == null
+                    if (timedOut) outcome = CellPressLogic.Outcome.LONG_PRESS
+                    when (outcome) {
+                        CellPressLogic.Outcome.TAP -> onClickState()
+                        CellPressLogic.Outcome.LONG_PRESS -> {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            start(if (iconCenter != Offset.Zero) iconCenter else cellCenter)
+                            dragTo(cellOrigin + down.position)
+                            while (true) {
+                                val ev = awaitPointerEvent()
+                                val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                                c.consume()
+                                dragTo(cellOrigin + c.position)
+                                if (!c.pressed) break
+                            }
+                            end() // release after long-press never launches
+                        }
+                        else -> Unit
+                    }
+                }
             }
-            .combinedClickable(onClick = onClick)
             .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
