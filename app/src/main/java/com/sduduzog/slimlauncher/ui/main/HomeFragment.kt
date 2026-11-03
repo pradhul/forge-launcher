@@ -420,6 +420,14 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
             override fun launchBind(intent: Intent) = bindWidget.launch(intent)
             override fun launchConfigure(intent: Intent) = configureWidget.launch(intent)
             override fun onCloseRequested() = closeWidgets()
+        }, appIcon = { pkg, serial ->
+            val launcher = requireContext().getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
+            val um = requireContext().getSystemService(Context.USER_SERVICE) as android.os.UserManager
+            val user = um.getUserForSerialNumber(serial)
+            val activityName = user?.let { u ->
+                runCatching { launcher.getActivityList(pkg, u).firstOrNull()?.componentName?.className }.getOrNull()
+            }
+            activityName?.let { iconResolver.resolveBitmap(pkg, it, serial) }
         }).also { it.reload() }
     }
 
@@ -758,7 +766,8 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
             return true
         }
         if (widgetsOpen) {
-            if (widgetsPage?.isEditing == true) widgetsPage?.exitEdit() else closeWidgets()
+            if (widgetsPage?.isPickerOpen == true) widgetsPage?.closePicker()
+            else if (widgetsPage?.isEditing == true) widgetsPage?.exitEdit() else closeWidgets()
             return true
         }
         if (DrawerMotionLogic.backClosesDrawerOnly(drawerOpen)) {
@@ -770,6 +779,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
 
     override fun onHome() {
         dockRing = null
+        widgetsPage?.closePicker()
         closeWidgets()
         closeDrawer()
     }

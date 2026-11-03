@@ -2,7 +2,6 @@ package com.sduduzog.slimlauncher.widgets
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.app.AlertDialog
 import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetManager
@@ -39,7 +38,8 @@ import kotlin.math.roundToInt
 class WidgetsPage(
     private val activity: Activity,
     private val container: FrameLayout,
-    private val callbacks: Callbacks
+    private val callbacks: Callbacks,
+    private val appIcon: (String, Long) -> Bitmap? = { _, _ -> null }
 ) {
     interface Callbacks {
         fun launchPick(intent: Intent)
@@ -75,6 +75,10 @@ class WidgetsPage(
     private val dots = LinearLayout(activity)
 
     val isEditing: Boolean get() = editingId != null
+    private var theme: PackTheme = PackTheme.STOCK
+    private var backdropBitmap: Bitmap? = null
+    private var picker: androidx.compose.ui.platform.ComposeView? = null
+    val isPickerOpen: Boolean get() = picker != null
 
     init {
         container.removeAllViews()
@@ -108,6 +112,8 @@ class WidgetsPage(
     fun stop() { runCatching { host.stopListening() } }
 
     fun applyTheme(theme: PackTheme, blurredWallpaper: Bitmap?) {
+        this.theme = theme
+        this.backdropBitmap = blurredWallpaper
         val colors = ThemedIconPalette.forTheme(theme)
         accent = colors.foreground.takeIf { theme.darkSurface } ?: colors.background
         onAccent = if (theme.darkSurface) colors.background else colors.foreground
@@ -144,29 +150,54 @@ class WidgetsPage(
 
     // ---- add flow ----
 
+    /** Full-screen in-app picker (no system ACTION_APPWIDGET_PICK, no app list). */
     fun startAdd() {
         exitEdit()
+        if (picker != null) return
+        val view = androidx.compose.ui.platform.ComposeView(activity).apply {
+            elevation = 40f * density
+            isClickable = true
+            setContent {
+                WidgetPickerScreen(
+                    theme = theme,
+                    backdrop = backdropBitmap,
+                    appIcon = appIcon,
+                    onPick = { pickProvider(it) },
+                    onClose = { closePicker() }
+                )
+            }
+        }
+        picker = view
+        frame.addView(view, FrameLayout.LayoutParams(MATCH, MATCH))
+    }
+
+    fun closePicker() {
+        val view = picker ?: return
+        picker = null
+        frame.removeView(view)
+        (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+            ?.hideSoftInputFromWindow(frame.windowToken, 0)
+    }
+
+    private fun pickProvider(p: PickerProvider) {
+        closePicker()
         val id = host.allocateAppWidgetId()
         pendingId = id
-        val pick = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK)
+        val provider = p.info.provider
+        val bound = runCatching { manager.bindAppWidgetIdIfAllowed(id, p.user, provider, null) }.getOrDefault(false)
+        if (bound) { finishBind(id); return }
+        val bind = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND)
             .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
-            .putParcelableArrayListExtra(AppWidgetManager.EXTRA_CUSTOM_INFO, ArrayList())
-            .putParcelableArrayListExtra(AppWidgetManager.EXTRA_CUSTOM_EXTRAS, ArrayList())
-        try {
-            callbacks.launchPick(pick)
-        } catch (_: ActivityNotFoundException) {
-            showProviderList(id)
-        } catch (_: SecurityException) {
-            showProviderList(id)
-        }
+            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, provider)
+            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER_PROFILE, p.user)
+        runCatching { callbacks.launchBind(bind) }.onFailure { discard(id) }
     }
 
     fun onPickResult(ok: Boolean, data: Intent?) {
         val id = data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingId) ?: pendingId
         if (!ok) { discard(id); return }
         if (manager.getAppWidgetInfo(id) == null) {
-            // Picker returned without binding: fall back to the in-app list.
-            showProviderList(id)
+            discard(id)
             return
         }
         finishBind(id)
@@ -178,27 +209,6 @@ class WidgetsPage(
 
     fun onConfigureResult(ok: Boolean) {
         if (ok) place(pendingId) else discard(pendingId)
-    }
-
-    private fun showProviderList(id: Int) {
-        val providers = manager.installedProviders.sortedBy { it.loadLabel(activity.packageManager).lowercase() }
-        if (providers.isEmpty()) { discard(id); return }
-        val labels = providers.map { it.loadLabel(activity.packageManager) }.toTypedArray()
-        AlertDialog.Builder(activity)
-            .setItems(labels) { _, which ->
-                val provider = providers[which].provider
-                if (manager.bindAppWidgetIdIfAllowed(id, provider)) {
-                    finishBind(id)
-                } else {
-                    pendingId = id
-                    val bind = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND)
-                        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
-                        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, provider)
-                    runCatching { callbacks.launchBind(bind) }.onFailure { discard(id) }
-                }
-            }
-            .setOnCancelListener { discard(id) }
-            .show()
     }
 
     private fun finishBind(id: Int) {
@@ -433,6 +443,8 @@ class WidgetsPage(
         private var stolen = false
 
         override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+            // The picker owns all touches (its widget rows scroll sideways).
+            if (picker != null) return false
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downX = ev.rawX; downY = ev.rawY; stolen = false
