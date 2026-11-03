@@ -36,6 +36,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.recyclerview.widget.RecyclerView
 import com.sduduzog.slimlauncher.ui.home.DrawerGestureLogic
 import com.sduduzog.slimlauncher.ui.home.DrawerIme
+import com.sduduzog.slimlauncher.ui.home.withPointer
 import com.sduduzog.slimlauncher.ui.home.DrawerWindowLogic
 import android.widget.PopupWindow
 import android.widget.TextView
@@ -489,8 +490,9 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                 val origin = IntArray(2).also { binding!!.root.getLocationOnScreen(it) }
                 val p = androidx.compose.ui.geometry.Offset(e.rawX - origin[0], e.rawY - origin[1])
                 dockRing = when (e.actionMasked) {
-                    MotionEvent.ACTION_MOVE -> ring.copy(pointer = p)
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> ring.copy(pointer = p, released = true)
+                    MotionEvent.ACTION_MOVE -> ring.withPointer(p, 16 * resources.displayMetrics.density)
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                        ring.withPointer(p, 16 * resources.displayMetrics.density, released = true)
                     else -> ring
                 }
             }

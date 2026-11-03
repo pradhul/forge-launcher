@@ -24,7 +24,8 @@ class RingMenuLogicTest {
         val l = lay(540f, 200f)
         assertThat(l.flipped).isTrue()
         l.options.forEach { assertThat(it.second.y).isGreaterThan(200f) }
-        assertThat(l.cancel.y).isLessThan(l.options[1].second.y)
+        // Cancel may sit above, below or beside; it just must not be under the finger.
+        assertThat(RingMenuLogic.hitTest(l, 540f, 200f, 540f, 200f, 140f)).isEqualTo(RingHit.Center)
     }
 
     @Test
@@ -130,5 +131,62 @@ class RingMenuEdgeLayoutTest {
     @Test
     fun topRowFlipsBelow() {
         for (cx in cols) assertThat(lay(cx, 300f).flipped).isTrue()
+    }
+}
+
+/** v28: top-left / bottom-left corners (WhatsApp in Frequent row, BookMyShow near search bar). */
+class RingMenuCornerTest {
+    private val dp = 2.625f
+    private val radius = 132 * dp
+    private val bubble = 64 * dp
+    private val label = 28 * dp
+    private val margin = 8 * dp
+    private val cancelW = 132 * dp
+    private val cancelH = 48 * dp
+    private val hit = 52 * dp
+
+    private fun lay(cx: Float, cy: Float, h: Float) =
+        RingMenuLogic.layout(cx, cy, radius, 1080f, h, margin, 150 * dp, bubble, label, cancelW, cancelH)
+
+    @Test
+    fun cornersFitAndFingerIsNeverOnCancelOrOption() {
+        for (h in listOf(2400f, 2268f, 2050f)) for (cx in listOf(135f, 945f))
+            for (cy in listOf(200f, 300f, 360f, h - 400f, h - 250f, h - 160f)) {
+                val l = lay(cx, cy, h)
+                val where = "cx=$cx cy=$cy h=$h"
+                assertWithMessage("$where finger hit").that(RingMenuLogic.hitTest(l, cx, cy, cx, cy, hit))
+                    .isEqualTo(RingHit.Center)
+                val rects = l.options.map { RingMenuLogic.itemRect(it.second, bubble, label) }
+                val cancel = RingMenuLogic.cancelRect(l.cancel, cancelW, cancelH)
+                assertWithMessage("$where cancel on screen").that(cancel.inside(1080f, h, margin - 0.5f)).isTrue()
+                rects.forEach { assertWithMessage("$where opt on screen $it").that(it.inside(1080f, h, margin - 0.5f)).isTrue() }
+                for (i in rects.indices) {
+                    assertWithMessage("$where opt$i vs cancel").that(rects[i].overlaps(cancel)).isFalse()
+                    for (j in i + 1 until rects.size)
+                        assertWithMessage("$where opt$i vs opt$j").that(rects[i].overlaps(rects[j])).isFalse()
+                }
+            }
+    }
+
+    @Test
+    fun stationaryHoldReleaseKeepsRingOpen() {
+        for (h in listOf(RingHit.Cancel, RingHit.None, RingHit.Center, RingHit.Option(RingAction.DOCK)))
+            assertThat(RingMenuLogic.onRelease(h, moved = false)).isEqualTo(RingMenuLogic.Release.KEEP_OPEN)
+    }
+
+    @Test
+    fun dragReleaseActsOrDismisses() {
+        assertThat(RingMenuLogic.onRelease(RingHit.Option(RingAction.APP_INFO), true)).isEqualTo(RingMenuLogic.Release.ACTION)
+        assertThat(RingMenuLogic.onRelease(RingHit.Cancel, true)).isEqualTo(RingMenuLogic.Release.DISMISS)
+        assertThat(RingMenuLogic.onRelease(RingHit.None, true)).isEqualTo(RingMenuLogic.Release.DISMISS)
+        assertThat(RingMenuLogic.onRelease(RingHit.Center, true)).isEqualTo(RingMenuLogic.Release.KEEP_OPEN)
+    }
+
+    @Test
+    fun movedIsStickyAndNeedsSlop() {
+        val p = RingPoint(100f, 100f)
+        assertThat(RingMenuLogic.movedFrom(p, 105f, 103f, 42f, false)).isFalse()
+        assertThat(RingMenuLogic.movedFrom(p, 200f, 100f, 42f, false)).isTrue()
+        assertThat(RingMenuLogic.movedFrom(p, 100f, 100f, 42f, true)).isTrue()
     }
 }

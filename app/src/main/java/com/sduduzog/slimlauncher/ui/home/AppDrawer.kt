@@ -180,6 +180,7 @@ fun AppDrawer(
 ) {
     var ring by remember { mutableStateOf<RingState?>(null) }
     var rootOrigin by remember { mutableStateOf(Offset.Zero) }
+    val ringSlop = with(LocalDensity.current) { 16.dp.toPx() }
     var selected by remember { mutableStateOf<DrawerAppItem?>(null) }
     val gridState = rememberLazyGridState()
     val keyboard = LocalSoftwareKeyboardController.current
@@ -295,7 +296,7 @@ fun AppDrawer(
                                 keyboard?.hide()
                                 ring = RingState(item, center - rootOrigin, null, RingHit.Center)
                             },
-                            onRingDrag = { pos -> ring = ring?.copy(pointer = pos - rootOrigin) },
+                            onRingDrag = { pos -> ring = ring?.withPointer(pos - rootOrigin, ringSlop) },
                             onRingEnd = { ring = ring?.copy(released = true) }
                         )
                     }
@@ -318,7 +319,7 @@ fun AppDrawer(
                             keyboard?.hide()
                             ring = RingState(item, center - rootOrigin, null, RingHit.Center)
                         },
-                        onRingDrag = { pos -> ring = ring?.copy(pointer = pos - rootOrigin) },
+                        onRingDrag = { pos -> ring = ring?.withPointer(pos - rootOrigin, ringSlop) },
                         onRingEnd = { ring = ring?.copy(released = true) }
                     )
                 }
@@ -612,8 +613,16 @@ data class RingState(
     val pointer: Offset?,
     val hit: RingHit,
     val released: Boolean = false,
-    val moved: Boolean = false
+    val moved: Boolean = false,
+    val press: Offset? = null
 )
+
+/** Update the drag pointer; remembers the press point and whether the finger really moved. */
+fun RingState.withPointer(p: Offset, slopPx: Float, released: Boolean = this.released): RingState {
+    val pressAt = press ?: p
+    val m = RingMenuLogic.movedFrom(RingPoint(pressAt.x, pressAt.y), p.x, p.y, slopPx, moved)
+    return copy(pointer = p, press = pressAt, moved = m, released = released)
+}
 
 /**
  * Radial long-press menu. Drag from the icon to an option and release to run
@@ -670,11 +679,11 @@ private fun RingMenuContent(
     // Drag-release resolution.
     LaunchedEffect(state.released) {
         if (!state.released) return@LaunchedEffect
-        when (hit) {
-            is RingHit.Option -> onAction(hit.action)
-            RingHit.Cancel -> onDismiss()
-            RingHit.None -> onDismiss()
-            RingHit.Center -> onUpdate(state.copy(released = false, pointer = null))
+        when (RingMenuLogic.onRelease(hit, state.moved)) {
+            RingMenuLogic.Release.ACTION -> onAction((hit as RingHit.Option).action)
+            RingMenuLogic.Release.DISMISS -> onDismiss()
+            RingMenuLogic.Release.KEEP_OPEN ->
+                onUpdate(state.copy(released = false, pointer = null, press = null, moved = false))
         }
     }
     val dismissTap by rememberUpdatedState(onDismiss)
