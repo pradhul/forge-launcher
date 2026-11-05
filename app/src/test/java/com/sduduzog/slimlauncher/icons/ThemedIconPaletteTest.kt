@@ -31,7 +31,7 @@ class ThemedIconPaletteTest {
     fun contrastMeetsWcagAA() {
         for (seed in seeds) for (dark in listOf(false, true)) {
             val c = ThemedIconPalette.colors(seed, dark)
-            assertThat(ThemedIconPalette.contrast(c.background, c.foreground)).isAtLeast(10.0)
+            assertThat(ThemedIconPalette.contrast(c.background, c.foreground)).isAtLeast(12.0)
         }
     }
 
@@ -45,8 +45,8 @@ class ThemedIconPaletteTest {
         assertThat(IconStyle.fromStorage(null)).isEqualTo(IconStyle.THEMED)
         assertThat(IconStyle.fromStorage(null, legacyArtistic = true)).isEqualTo(IconStyle.ARTISTIC)
         assertThat(IconStyle.fromStorage("tinted")).isEqualTo(IconStyle.TINTED)
-        assertThat(IconCacheLogic.KEY_VERSION).isEqualTo(6)
-        assertThat(com.sduduzog.slimlauncher.wallpaper.WallpaperPackLogic.RENDER_VERSION).isEqualTo("r6")
+        assertThat(IconCacheLogic.KEY_VERSION).isEqualTo(7)
+        assertThat(com.sduduzog.slimlauncher.wallpaper.WallpaperPackLogic.RENDER_VERSION).isEqualTo("r7")
     }
 }
 
@@ -68,9 +68,9 @@ class ThemedIconPaletteChromaTest {
             val h = ThemedIconPalette.hue(seed)
             assertThat(hueDiff(ThemedIconPalette.hue(c.foreground), h)).isAtMost(20.0)
             assertThat(hueDiff(ThemedIconPalette.hue(c.background), h)).isAtMost(20.0)
-            com.google.common.truth.Truth.assertWithMessage("seed=%s dark=%s fg=%s", Integer.toHexString(seed), dark, Integer.toHexString(c.foreground)).that(ThemedIconPalette.chroma(c.foreground)).isAtLeast(if (dark) 20 else 35)
+            com.google.common.truth.Truth.assertWithMessage("seed=%s dark=%s fg=%s", Integer.toHexString(seed), dark, Integer.toHexString(c.foreground)).that(ThemedIconPalette.chroma(c.foreground)).isAtLeast(if (dark) 20 else 28)
             assertThat(ThemedIconPalette.chroma(c.background)).isAtLeast(12)
-            assertThat(ThemedIconPalette.contrast(c.background, c.foreground)).isAtLeast(10.0)
+            assertThat(ThemedIconPalette.contrast(c.background, c.foreground)).isAtLeast(12.0)
         }
     }
 
@@ -95,13 +95,17 @@ class ThemedIconRichnessTest {
         val seeds = intArrayOf(0xFFC8102E.toInt(), 0xFF3366AA.toInt(), 0xFF1DB954.toInt(), 0xFF8E6BB5.toInt(), 0xFF6B7F8E.toInt())
         for (seed in seeds) for (dark in listOf(false, true)) {
             val c = ThemedIconPalette.colors(seed, dark)
-            assertThat(ThemedIconPalette.contrast(c.background, c.foreground)).isAtLeast(10.0)
+            assertThat(ThemedIconPalette.contrast(c.background, c.foreground)).isAtLeast(12.0)
             assertThat(ThemedIconPalette.saturation(c.background)).isAtLeast(0.55)
             // fully opaque, no haze
             assertThat(c.background ushr 24).isEqualTo(0xFF)
             assertThat(c.foreground ushr 24).isEqualTo(0xFF)
-            if (dark) assertThat(ThemedIconPalette.lstar(c.foreground)).isAtLeast(90.0)
-            else assertThat(ThemedIconPalette.lstar(c.foreground)).isAtMost(22.0)
+            if (dark) {
+                assertThat(ThemedIconPalette.lstar(c.foreground)).isAtLeast(78.0)
+                assertThat(ThemedIconPalette.lstar(c.foreground)).isAtMost(90.0)
+            } else {
+                assertThat(ThemedIconPalette.lstar(c.foreground)).isAtMost(18.0)
+            }
         }
     }
 }

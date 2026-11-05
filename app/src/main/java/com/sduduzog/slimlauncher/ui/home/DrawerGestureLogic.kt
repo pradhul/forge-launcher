@@ -9,9 +9,9 @@ import kotlin.math.abs
  */
 object DrawerGestureLogic {
     /** Distance (dp) before a vertical swipe commits. */
-    const val COMMIT_DP = 24f
+    const val COMMIT_DP = 20f
     /** Fling velocity (dp/s) that commits even a short swipe on release. */
-    const val FLING_DP_PER_S = 480f
+    const val FLING_DP_PER_S = 400f
     /** Vertical must dominate horizontal by this factor. */
     const val DOMINANCE = 1.3f
 

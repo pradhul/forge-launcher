@@ -21,7 +21,7 @@ object DrawerBlurLogic {
     const val MIN_FALLBACK_SCRIM = 0.18f
     const val MAX_FALLBACK_SCRIM = 0.55f
     const val WINDOW_BLUR_SDK = 31
-    const val ANIM_MS = 120
+    const val ANIM_MS = 90
 
     enum class BackdropMode { LIVE_WINDOW, BITMAP, COLOR_SCRIM }
 
@@ -112,8 +112,8 @@ object DrawerBlurLogic {
 
 object DrawerMotionLogic {
     const val ANIM_MS = DrawerBlurLogic.ANIM_MS
-    const val OPEN_DISTANCE = 48f
-    const val CLOSE_DISTANCE = 48f
+    const val OPEN_DISTANCE = 36f
+    const val CLOSE_DISTANCE = 36f
 
     fun shouldOpenFromHomeSwipe(upDistance: Float, velocityX: Float, velocityY: Float): Boolean {
         return upDistance > OPEN_DISTANCE && kotlin.math.abs(velocityY) > kotlin.math.abs(velocityX)

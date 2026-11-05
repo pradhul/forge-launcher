@@ -455,7 +455,10 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         container.visibility = View.VISIBLE
         val w = container.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
         container.translationX = w.toFloat()
-        container.animate().translationX(0f).setDuration(DrawerMotionLogic.ANIM_MS.toLong()).start()
+        container.animate().translationX(0f)
+            .setDuration(DrawerMotionLogic.ANIM_MS.toLong())
+            .setInterpolator(android.view.animation.DecelerateInterpolator())
+            .start()
         setHomeChromeVisible(false)
         syncWindowBlur()
     }
@@ -467,6 +470,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         val container = binding?.homeFragmentWidgets ?: return
         container.animate().translationX(container.width.toFloat())
             .setDuration(DrawerMotionLogic.ANIM_MS.toLong())
+            .setInterpolator(android.view.animation.AccelerateInterpolator())
             .withEndAction {
                 if (!widgetsOpen) {
                     container.visibility = View.GONE

@@ -161,7 +161,7 @@ object GlyphExtractor {
             if (s == 0) 0 else {
                 val x = glyph[i] / 255f
                 // Steepen mid-alphas so the glyph reads as ink, not haze.
-                val t = if (x <= 0f) 0f else if (x >= 1f) 1f else x.toDouble().pow(0.62).toFloat()
+                val t = if (x <= 0f) 0f else if (x >= 1f) 1f else x.toDouble().pow(0.50).toFloat()
                 fun ch(sh: Int): Int {
                     val b = bg ushr sh and 0xFF; val f = fg ushr sh and 0xFF
                     return (b + (f - b) * t).toInt()

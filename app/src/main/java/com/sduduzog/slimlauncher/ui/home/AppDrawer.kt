@@ -1,7 +1,8 @@
 package com.sduduzog.slimlauncher.ui.home
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -100,15 +101,15 @@ fun AppDrawerOverlay(
     onLaunchShortcut: (AppShortcut) -> Unit = {},
     onClose: () -> Unit
 ) {
-    val motion = remember {
-        tween<Float>(
-            durationMillis = DrawerMotionLogic.ANIM_MS,
-            easing = FastOutSlowInEasing
-        )
-    }
     val progress = remember { Animatable(0f) }
     LaunchedEffect(visible) {
-        progress.animateTo(if (visible) 1f else 0f, motion)
+        progress.animateTo(
+            if (visible) 1f else 0f,
+            tween(
+                durationMillis = DrawerMotionLogic.ANIM_MS,
+                easing = if (visible) LinearOutSlowInEasing else FastOutLinearInEasing
+            )
+        )
     }
     val bitmap = state.backdrop
     val backdropImage = remember(bitmap) { bitmap?.asImageBitmap() }
@@ -134,7 +135,7 @@ fun AppDrawerOverlay(
             .graphicsLayer {
                 val value = progress.value
                 this.alpha = value
-                translationY = (1f - value) * 12f
+                translationY = (1f - value) * 8f
             }
     ) {
         if (DrawerBlurLogic.shouldDrawBitmapBackdrop(mode, bitmap != null, state.drawerBlurPercent)) {

@@ -2,9 +2,14 @@ package com.sduduzog.slimlauncher.ui.home
 
 import com.sduduzog.slimlauncher.models.HomeApp
 
+sealed class HomeSlot {
+    data class App(val app: HomeApp) : HomeSlot()
+    data class Empty(val key: Int) : HomeSlot()
+}
+
 /**
  * Home is one 4-column grid. The bottom row is just more slots — there is
- * no separate dock.
+ * no separate dock. Extra apps fill rows above that bottom row.
  */
 object HomeGridLogic {
     const val COLUMNS = AppDrawerGrid.PHONE_COLUMNS
@@ -15,11 +20,42 @@ object HomeGridLogic {
 
     fun <T> apps(favourites: List<T>): List<T> = favourites.take(MAX)
 
-    fun reorder(apps: List<HomeApp>, from: Int, to: Int): List<HomeApp> {
-        if (from !in apps.indices || to !in apps.indices || from == to) return apps
-        val next = apps.toMutableList()
+    /**
+     * Cells for a bottom-anchored 4-column grid. The first [COLUMNS] apps
+     * occupy the visual bottom row; anything else sits in rows above, with
+     * empty pads so the bottom row stays a full home row.
+     */
+    fun visualSlots(apps: List<HomeApp>, columns: Int = COLUMNS): List<HomeSlot> {
+        val list = apps.take(MAX)
+        if (list.size <= columns) return list.map { HomeSlot.App(it) }
+        val bottom = list.take(columns).map { HomeSlot.App(it) }
+        val above = list.drop(columns)
+        val pad = (columns - above.size % columns) % columns
+        val pads = List(pad) { HomeSlot.Empty(it) }
+        return above.map { HomeSlot.App(it) } + pads + bottom
+    }
+
+    /**
+     * Persisted order: the last [columns] filled cells in reading order are
+     * the bottom home row (first slots). Extra icons sit in the rows above.
+     * Empty pads are ignored so a drag that leaves holes still compact back.
+     */
+    fun logicalFromVisual(slots: List<HomeSlot>, columns: Int = COLUMNS): List<HomeApp> {
+        val filled = slots.mapNotNull { (it as? HomeSlot.App)?.app }
+        if (filled.size <= columns) return filled
+        val aboveCount = filled.size - columns
+        return filled.drop(aboveCount) + filled.take(aboveCount)
+    }
+
+    fun reorder(slots: List<HomeSlot>, from: Int, to: Int): List<HomeSlot> {
+        if (from !in slots.indices || to !in slots.indices || from == to) return slots
+        val next = slots.toMutableList()
         val item = next.removeAt(from)
         next.add(to, item)
-        return next.mapIndexed { index, app -> app.copy(sortingIndex = index) }
+        return next
+    }
+
+    fun withIndices(apps: List<HomeApp>): List<HomeApp> {
+        return apps.mapIndexed { index, app -> app.copy(sortingIndex = index) }
     }
 }

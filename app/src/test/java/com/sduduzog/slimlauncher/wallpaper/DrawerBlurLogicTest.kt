@@ -64,7 +64,7 @@ class DrawerBlurLogicTest {
         assertThat(DrawerMotionLogic.backClosesDrawerOnly(true)).isTrue()
         assertThat(DrawerMotionLogic.backClosesDrawerOnly(false)).isFalse()
         assertThat(DrawerMotionLogic.ANIM_MS).isAtMost(200)
-        assertThat(DrawerMotionLogic.ANIM_MS).isAtLeast(100)
+        assertThat(DrawerMotionLogic.ANIM_MS).isAtLeast(80)
     }
 
     @Test

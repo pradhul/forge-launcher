@@ -61,7 +61,7 @@ class DrawerWindowLogicTest {
     @Test
     fun nestedScrollDoesNotConsumeSmallDownwardMoves() {
         assertThat(
-            DrawerWindowLogic.shouldConsumeCloseScroll(40f, gridAtTop = true, accumulatedDown = 0f)
+            DrawerWindowLogic.shouldConsumeCloseScroll(30f, gridAtTop = true, accumulatedDown = 0f)
         ).isFalse()
         assertThat(
             DrawerWindowLogic.shouldConsumeCloseScroll(40f, gridAtTop = true, accumulatedDown = 50f)

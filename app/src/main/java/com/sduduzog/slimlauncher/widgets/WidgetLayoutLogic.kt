@@ -56,7 +56,7 @@ object WidgetLayoutLogic {
  * horizontal move so vertical scrolling and widget taps keep working.
  */
 object PageSwipeLogic {
-    const val COMMIT_DP = 56f
+    const val COMMIT_DP = 48f
     const val DOMINANCE = 1.8f
 
     fun isHorizontal(dx: Float, dy: Float): Boolean = abs(dx) > abs(dy) * DOMINANCE

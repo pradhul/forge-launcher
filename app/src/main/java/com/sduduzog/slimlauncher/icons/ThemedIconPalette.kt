@@ -12,11 +12,11 @@ data class ThemedColors(val background: Int, val foreground: Int)
 
 /**
  * Tonal palette for themed icons, derived from one wallpaper seed colour.
- * Tones follow CIE L* (Material "tone"): light = bg tone 90 / glyph tone 25,
- * dark = bg tone 22 / glyph tone 88. Contrast is pushed to WCAG >= 4.5.
+ * Tones follow CIE L* (Material "tone"): light = bg tone 90 / glyph tone 12,
+ * dark = bg tone 10 / glyph tone 84. Contrast is pushed to WCAG >= 12:1.
  */
 object ThemedIconPalette {
-    const val MIN_CONTRAST = 10.0
+    const val MIN_CONTRAST = 12.0
     const val MIN_SATURATION = 0.82
     const val BG_SATURATION = 0.92
 
@@ -33,23 +33,20 @@ object ThemedIconPalette {
     fun forTheme(theme: PackTheme): ThemedColors = colors(theme.accent, theme.darkSurface)
 
     fun colors(seed: Int, dark: Boolean): ThemedColors {
-        // Richer plate + punchier glyph, pushed to >= 10:1. Prefer moving
-        // the plate (darker/lighter) over bleaching the glyph toward white.
-        var bgTone = if (dark) 16.0 else 86.0
-        var fgTone = if (dark) 92.0 else 14.0
+        // Richer plate + punchier glyph, pushed to >= 12:1. Dark glyphs stay
+        // mid-light (not cream) so they keep chroma; light glyphs stay deep.
+        var bgTone = if (dark) 10.0 else 90.0
+        var fgTone = if (dark) 84.0 else 12.0
         fun bgOf(t: Double) = tone(seed, t, 1.85, BG_SATURATION)
-        fun fgOf(t: Double) = tone(seed, t, 1.45, MIN_SATURATION)
+        fun fgOf(t: Double) = tone(seed, t, 1.55, MIN_SATURATION)
         var bg = bgOf(bgTone)
         var fg = fgOf(fgTone)
         var guard = 0
         while (contrast(bg, fg) < MIN_CONTRAST && guard++ < 60) {
-            if (dark) {
-                if (bgTone > 8.0) bgTone = max(8.0, bgTone - 1.5)
-                else fgTone = min(94.0, fgTone + 1.0)
-            } else {
-                if (bgTone < 96.0) bgTone = min(96.0, bgTone + 1.5)
-                else fgTone = max(6.0, fgTone - 1.0)
-            }
+            // Never bleach the glyph — only move the plate. Washed-out
+            // pastel glyphs were the previous complaint.
+            if (dark) bgTone = max(2.0, bgTone - 1.5)
+            else bgTone = min(98.0, bgTone + 1.5)
             bg = bgOf(bgTone)
             fg = fgOf(fgTone)
         }
