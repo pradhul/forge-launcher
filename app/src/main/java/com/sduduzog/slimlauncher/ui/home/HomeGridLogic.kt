@@ -39,11 +39,19 @@ object HomeGridLogic {
         }
     }
 
-    /** Home rows whose launcher is no longer installed. */
+    /**
+     * Home rows whose launcher is no longer installed. Never wipes the
+     * grid when the installed catalog is empty — that is a load failure,
+     * not "every app was uninstalled."
+     */
     fun stale(home: List<HomeApp>, installed: List<App>): List<HomeApp> {
+        if (home.isEmpty() || installed.isEmpty()) return emptyList()
         val live = installed.map { Triple(it.packageName, it.activityName, it.userSerial) }.toSet()
         return home.filter { Triple(it.packageName, it.activityName, it.userSerial) !in live }
     }
+
+    /** Filled cells the home RecyclerView should show. Empty home → empty list. */
+    fun displaySlots(home: List<HomeApp>): List<HomeSlot> = visualSlots(apps(home))
 
     /**
      * Cells for a bottom-anchored 4-column grid. The first [COLUMNS] apps

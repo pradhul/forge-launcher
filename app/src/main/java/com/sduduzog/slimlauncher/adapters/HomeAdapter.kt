@@ -6,7 +6,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.SimpleItemAnimator
@@ -167,11 +166,12 @@ class HomeAdapter(
 
     fun setItems(list: List<HomeApp>) {
         if (dragging) return
-        val next = HomeGridLogic.visualSlots(HomeGridLogic.apps(list))
-        val diff = DiffUtil.calculateDiff(HomeSlotCallback(slots, next), false)
+        val next = HomeGridLogic.displaySlots(list)
         slots.clear()
         slots.addAll(next)
-        diff.dispatchUpdatesTo(this)
+        // wrap_content grid must always remeasure; DiffUtil inserts into a
+        // 0-height RecyclerView with hasFixedSize left the home screen blank.
+        notifyDataSetChanged()
     }
 
     fun setLabelColor(color: Int) {
@@ -212,22 +212,6 @@ class HomeAdapter(
     inner class ViewHolder(mView: View) : RecyclerView.ViewHolder(mView) {
         val mLabelView: TextView = mView.findViewById(R.id.home_fragment_list_item_app_name)
         val mIconView: ImageView = mView.findViewById(R.id.home_fragment_list_item_app_icon)
-    }
-
-    private class HomeSlotCallback(
-        private val old: List<HomeSlot>,
-        private val next: List<HomeSlot>
-    ) : DiffUtil.Callback() {
-        override fun getOldListSize(): Int = old.size
-        override fun getNewListSize(): Int = next.size
-
-        override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
-            return HomeSlotDiff.areItemsTheSame(old[oldItemPosition], next[newItemPosition])
-        }
-
-        override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
-            return HomeSlotDiff.areContentsTheSame(old[oldItemPosition], next[newItemPosition])
-        }
     }
 
     companion object {

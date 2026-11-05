@@ -59,6 +59,29 @@ class HomeGridLogicTest {
     }
 
     @Test
+    fun addToEmptyHomeProducesAVisibleBottomRowSlot() {
+        assertThat(HomeGridLogic.displaySlots(emptyList())).isEmpty()
+        val afterAdd = listOf(app("Chrome", 0))
+        val slots = HomeGridLogic.displaySlots(afterAdd)
+        assertThat(slots).isNotEmpty()
+        assertThat(slots.filterIsInstance<HomeSlot.App>().map { it.app.appName })
+            .containsExactly("Chrome")
+        val four = (0 until 4).map { app("a$it", it) }
+        assertThat(HomeGridLogic.displaySlots(four).filterIsInstance<HomeSlot.App>()).hasSize(4)
+        val five = four + app("a4", 4)
+        val fiveSlots = HomeGridLogic.displaySlots(five)
+        assertThat(fiveSlots.filterIsInstance<HomeSlot.App>()).hasSize(5)
+        assertThat(names(fiveSlots).takeLast(4)).containsExactly("a0", "a1", "a2", "a3").inOrder()
+    }
+
+    @Test
+    fun emptyInstalledCatalogDoesNotMarkHomeStale() {
+        val home = listOf(app("Chrome", 0), app("Phone", 1))
+        assertThat(HomeGridLogic.stale(home, emptyList())).isEmpty()
+        assertThat(HomeGridLogic.displaySlots(home).filterIsInstance<HomeSlot.App>()).hasSize(2)
+    }
+
+    @Test
     fun membershipIsExactLauncherOnVisibleGrid() {
         val home = (0 until 3).map { app("a$it", it) }
         assertThat(HomeGridLogic.isOnHome(home, "pkg.a0", "Act", 0L)).isTrue()

@@ -135,13 +135,14 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
             onLongPressUp = { releaseHomeLongPress() },
             onReorder = { viewModel.reorder(it) }
         )
-        binding!!.homeFragmentList.setHasFixedSize(true)
+        binding!!.homeFragmentList.setHasFixedSize(false)
         binding!!.homeFragmentList.setItemViewCacheSize(16)
         binding!!.homeFragmentList.adapter = adapter
         adapter.attachDrag(binding!!.homeFragmentList)
         viewModel.apps.observe(viewLifecycleOwner) { list ->
             homeApps = list.orEmpty()
-            adapter.setItems(HomeGridLogic.apps(homeApps))
+            adapter.setItems(homeApps)
+            binding!!.homeFragmentList.requestLayout()
             if (!drawerOpen) {
                 binding!!.homeFragmentEmpty.isVisible = homeApps.isEmpty()
             }
