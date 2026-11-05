@@ -40,9 +40,9 @@ class MainViewModel @Inject constructor(
 
     fun pin(app: App) {
         viewModelScope.launch(Dispatchers.IO) {
-            val already = repository.getAppsSync().any {
-                it.packageName == app.packageName && it.userSerial == app.userSerial
-            }
+            val already = HomeGridLogic.isOnHome(
+                repository.getAppsSync(), app.packageName, app.activityName, app.userSerial
+            )
             if (already) return@launch
             val count = repository.countApps()
             if (!HomeGridLogic.canAdd(count)) return@launch
@@ -57,9 +57,15 @@ class MainViewModel @Inject constructor(
     }
 
     fun unpin(packageName: String, userSerial: Long) {
+        unpin(packageName, activityName = null, userSerial = userSerial)
+    }
+
+    fun unpin(packageName: String, activityName: String?, userSerial: Long) {
         viewModelScope.launch(Dispatchers.IO) {
             val match = repository.getAppsSync().firstOrNull {
-                it.packageName == packageName && it.userSerial == userSerial
+                it.packageName == packageName &&
+                    it.userSerial == userSerial &&
+                    (activityName == null || it.activityName == activityName)
             } ?: return@launch
             repository.remove(match)
         }

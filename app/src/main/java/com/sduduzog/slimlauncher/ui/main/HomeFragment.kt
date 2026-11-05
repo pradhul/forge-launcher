@@ -26,22 +26,18 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import com.sduduzog.slimlauncher.diag.AboutDebugLog
+import com.sduduzog.slimlauncher.ui.home.AppPopupAction
+import com.sduduzog.slimlauncher.ui.home.AppPopupLogic
+import com.sduduzog.slimlauncher.ui.home.AppPopupOverlay
+import com.sduduzog.slimlauncher.ui.home.AppPopupState
 import com.sduduzog.slimlauncher.ui.home.AppShortcut
 import com.sduduzog.slimlauncher.ui.home.AppShortcutLogic
-import com.sduduzog.slimlauncher.ui.home.DrawerAppItem
 import com.sduduzog.slimlauncher.ui.home.HomeGridLogic
-import com.sduduzog.slimlauncher.ui.home.RingAction
-import com.sduduzog.slimlauncher.ui.home.RingHit
-import com.sduduzog.slimlauncher.ui.home.RingMenuOverlay
-import com.sduduzog.slimlauncher.ui.home.RingOption
-import com.sduduzog.slimlauncher.ui.home.RingState
 import com.sduduzog.slimlauncher.widgets.PageSwipeLogic
 import com.sduduzog.slimlauncher.widgets.WidgetsPage
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.recyclerview.widget.RecyclerView
 import com.sduduzog.slimlauncher.ui.home.DrawerGestureLogic
 import com.sduduzog.slimlauncher.ui.home.DrawerIme
-import com.sduduzog.slimlauncher.ui.home.withPointer
 import com.sduduzog.slimlauncher.ui.home.DrawerWindowLogic
 import android.widget.PopupWindow
 import android.widget.TextView
@@ -113,8 +109,8 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     private lateinit var receiver: BroadcastReceiver
     private var widgetsPage: WidgetsPage? = null
     private var widgetsOpen = false
-    private var dockRing by mutableStateOf<RingState?>(null)
-    private var pendingHomeRing: Pair<HomeApp, View>? = null
+    private var homePopup by mutableStateOf<AppPopupState?>(null)
+    private var pendingHomePopup: Pair<HomeApp, View>? = null
     private val pickWidget = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         widgetsPage?.onPickResult(it.resultCode == android.app.Activity.RESULT_OK, it.data)
     }
@@ -135,7 +131,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         adapter = HomeAdapter(
             this,
             iconResolver,
-            onLongPressReady = { app, view -> pendingHomeRing = app to view },
+            onLongPressReady = { app, view -> pendingHomePopup = app to view },
             onLongPressUp = { releaseHomeLongPress() },
             onReorder = { viewModel.reorder(it) }
         )
@@ -156,7 +152,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         binding!!.homeFragmentDrawerHandle.setOnClickListener { openDrawer() }
         setupDrawerOverlay()
         setupWidgets()
-        setupDockRing()
+        setupAppPopup()
         setupGestures()
         observeIconRevision()
         applyLauncherTheme()
@@ -189,19 +185,13 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                             ).show()
                         }
                     },
-                    onUnpin = { viewModel.unpin(it.packageName, it.userSerial) },
+                    onUnpin = { viewModel.unpin(it.packageName, it.activityName, it.userSerial) },
                     onAppInfo = ::openAppInfo,
                     onRegenerate = drawerViewModel::regenerate,
-                    onUninstall = { app ->
-                        runCatching {
-                            startActivity(
-                                Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:${app.packageName}"))
-                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            )
-                        }
-                    },
+                    onUninstall = ::uninstall,
                     onShortcuts = ::loadShortcuts,
                     onLaunchShortcut = ::launchShortcut,
+                    onCanUninstall = ::canUninstall,
                     onClose = { closeDrawer() }
                 )
             }
@@ -480,86 +470,71 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         syncWindowBlur()
     }
 
-    private fun setupDockRing() {
-        val ringView = binding!!.homeFragmentRing
-        ringView.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
-        ringView.setContent {
+    private fun setupAppPopup() {
+        val overlay = binding!!.homeFragmentRing
+        overlay.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+        overlay.setContent {
             val theme by drawerViewModel.ui.collectAsStateWithLifecycle()
-            val current = dockRing
+            val current = homePopup
             ForgeTheme(theme = theme.theme, drawerScrim = true) {
                 if (current != null) {
-                    RingMenuOverlay(
+                    AppPopupOverlay(
                         state = current,
-                        onUpdate = { dockRing = it },
-                        onAction = { option ->
-                            val app = current.item.app
-                            dockRing = null
-                            when (option) {
-                                is RingOption.Builtin -> when (option.action) {
-                                    RingAction.APP_INFO -> openAppInfo(app)
-                                    RingAction.HOME -> viewModel.unpin(app.packageName, app.userSerial)
-                                    RingAction.UNINSTALL -> uninstall(app)
+                        onAction = { action ->
+                            val app = current.app
+                            homePopup = null
+                            when (action) {
+                                is AppPopupAction.AppInfo -> openAppInfo(app)
+                                is AppPopupAction.Home -> {
+                                    if (current.onHome) {
+                                        viewModel.unpin(app.packageName, app.activityName, app.userSerial)
+                                    } else {
+                                        viewModel.pin(app)
+                                    }
                                 }
-                                is RingOption.Shortcut -> launchShortcut(option.shortcut)
+                                is AppPopupAction.Uninstall -> uninstall(app)
+                                is AppPopupAction.Shortcut -> launchShortcut(action.shortcut)
                             }
                         },
-                        onDismiss = { dockRing = null }
+                        onDismiss = { homePopup = null }
                     )
                 }
             }
-            ringView.visibility = if (current != null) View.VISIBLE else View.GONE
+            overlay.visibility = if (current != null) View.VISIBLE else View.GONE
         }
-        // Drag-select from the long-pressed dock icon: forward the rest of the gesture.
-        binding!!.homeFragmentList.addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
-            override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
-                return dockRing != null && !adapter.didDrag() && e.actionMasked != MotionEvent.ACTION_DOWN
-            }
-
-            override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {
-                val ring = dockRing ?: return
-                val origin = IntArray(2).also { binding!!.root.getLocationOnScreen(it) }
-                val p = androidx.compose.ui.geometry.Offset(e.rawX - origin[0], e.rawY - origin[1])
-                dockRing = when (e.actionMasked) {
-                    MotionEvent.ACTION_MOVE -> ring.withPointer(p, 16 * resources.displayMetrics.density)
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
-                        ring.withPointer(p, 16 * resources.displayMetrics.density, released = true)
-                    else -> ring
-                }
-            }
-        })
     }
 
-    private fun showDockRing(app: HomeApp, iconView: View) {
+    private fun showHomePopup(app: HomeApp, iconView: View) {
         if (drawerOpen) return
-        val ringView = binding?.homeFragmentRing ?: return
+        val overlay = binding?.homeFragmentRing ?: return
         val icon = IntArray(2).also { iconView.getLocationOnScreen(it) }
-        // Ring view is GONE (never laid out) here; it fills the root, so use the root's origin.
         val origin = IntArray(2).also { binding!!.root.getLocationOnScreen(it) }
         val center = androidx.compose.ui.geometry.Offset(
             icon[0] - origin[0] + iconView.width / 2f,
             icon[1] - origin[1] + iconView.height / 2f
         )
-        val bmp = (iconView as? android.widget.ImageView)?.drawable
-            ?.let { it as? android.graphics.drawable.BitmapDrawable }?.bitmap
         iconView.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-        ringView.visibility = View.VISIBLE
-        dockRing = RingState(
-            item = DrawerAppItem(App.from(app), pinned = true, icon = bmp),
-            center = center,
-            pointer = null,
-            hit = RingHit.Center,
-            shortcuts = loadShortcuts(App.from(app))
+        overlay.visibility = View.VISIBLE
+        val model = App.from(app)
+        homePopup = AppPopupState(
+            app = model,
+            onHome = HomeGridLogic.isOnHome(
+                homeApps, app.packageName, app.activityName, app.userSerial
+            ),
+            canUninstall = canUninstall(model),
+            shortcuts = loadShortcuts(model),
+            anchor = center
         )
     }
 
     private fun releaseHomeLongPress() {
-        val pending = pendingHomeRing ?: return
+        val pending = pendingHomePopup ?: return
         if (adapter.didDrag()) {
-            pendingHomeRing = null
+            pendingHomePopup = null
             return
         }
-        pendingHomeRing = null
-        if (dockRing == null && !drawerOpen) showDockRing(pending.first, pending.second)
+        pendingHomePopup = null
+        if (homePopup == null && !drawerOpen) showHomePopup(pending.first, pending.second)
     }
 
     private fun loadShortcuts(app: App): List<AppShortcut> {
@@ -613,6 +588,15 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                 Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:${app.packageName}"))
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
+        }
+    }
+
+    private fun canUninstall(app: App): Boolean {
+        return try {
+            val flags = requireContext().packageManager.getApplicationInfo(app.packageName, 0).flags
+            AppPopupLogic.canUninstall(flags)
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -742,6 +726,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     }
 
     private fun openDrawer() {
+        homePopup = null
         cancelCloseDrawer()
         val overlay = binding?.homeFragmentDrawer ?: return
         overlay.setLayerType(View.LAYER_TYPE_HARDWARE, null)
@@ -840,8 +825,8 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     }
 
     override fun onBack(): Boolean {
-        if (dockRing != null) {
-            dockRing = null
+        if (homePopup != null) {
+            homePopup = null
             return true
         }
         if (widgetsOpen) {
@@ -857,7 +842,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     }
 
     override fun onHome() {
-        dockRing = null
+        homePopup = null
         widgetsPage?.closePicker()
         closeWidgets()
         closeDrawer()

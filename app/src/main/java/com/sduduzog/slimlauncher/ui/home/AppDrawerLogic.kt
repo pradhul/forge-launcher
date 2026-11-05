@@ -1,6 +1,7 @@
 package com.sduduzog.slimlauncher.ui.home
 
 import com.sduduzog.slimlauncher.data.model.App
+import com.sduduzog.slimlauncher.models.HomeApp
 
 object AppDrawerLogic {
     fun filter(apps: List<App>, query: String): List<App> {
@@ -17,11 +18,12 @@ object AppDrawerLogic {
     }
 
     fun isPinned(
-        home: List<Pair<String, Long>>,
+        home: List<HomeApp>,
         packageName: String,
+        activityName: String,
         userSerial: Long
     ): Boolean {
-        return home.any { it.first == packageName && it.second == userSerial }
+        return HomeGridLogic.isOnHome(home, packageName, activityName, userSerial)
     }
 
     fun itemKey(app: App): String {

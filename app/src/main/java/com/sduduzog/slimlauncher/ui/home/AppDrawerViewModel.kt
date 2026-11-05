@@ -83,11 +83,12 @@ class AppDrawerViewModel @Inject constructor(
     )
 
     private val items = combine(_installed, _home, _icons) { installed, home, icons ->
-        val pins = home.map { it.packageName to it.userSerial }
         installed.map { app ->
             DrawerAppItem(
                 app = app,
-                pinned = AppDrawerLogic.isPinned(pins, app.packageName, app.userSerial),
+                pinned = AppDrawerLogic.isPinned(
+                    home, app.packageName, app.activityName, app.userSerial
+                ),
                 icon = icons[iconKey(app)]
             )
         }
@@ -206,6 +207,10 @@ class AppDrawerViewModel @Inject constructor(
             lastInstalledMs = now
             if (apps != _installed.value) {
                 _installed.value = apps
+            }
+            val stale = HomeGridLogic.stale(_home.value, apps)
+            if (stale.isNotEmpty()) {
+                stale.forEach { repository.remove(it) }
             }
             prefs.appliedPackId?.let { packId ->
                 store.getPack(packId)?.let { generator.fillMissing(it, apps) }

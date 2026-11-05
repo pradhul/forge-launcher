@@ -99,6 +99,7 @@ fun AppDrawerOverlay(
     onUninstall: (App) -> Unit = {},
     onShortcuts: (App) -> List<AppShortcut> = { emptyList() },
     onLaunchShortcut: (AppShortcut) -> Unit = {},
+    onCanUninstall: (App) -> Boolean = { true },
     onClose: () -> Unit
 ) {
     val progress = remember { Animatable(0f) }
@@ -165,6 +166,7 @@ fun AppDrawerOverlay(
             onUninstall = onUninstall,
             onShortcuts = onShortcuts,
             onLaunchShortcut = onLaunchShortcut,
+            onCanUninstall = onCanUninstall,
             onClose = onClose
         )
     }
@@ -183,12 +185,11 @@ fun AppDrawer(
     onUninstall: (App) -> Unit = {},
     onShortcuts: (App) -> List<AppShortcut> = { emptyList() },
     onLaunchShortcut: (AppShortcut) -> Unit = {},
+    onCanUninstall: (App) -> Boolean = { true },
     onClose: () -> Unit
 ) {
-    var ring by remember { mutableStateOf<RingState?>(null) }
+    var popup by remember { mutableStateOf<AppPopupState?>(null) }
     var rootOrigin by remember { mutableStateOf(Offset.Zero) }
-    val ringSlop = with(LocalDensity.current) { 16.dp.toPx() }
-    var selected by remember { mutableStateOf<DrawerAppItem?>(null) }
     val gridState = rememberLazyGridState()
     val keyboard = LocalSoftwareKeyboardController.current
     val launchApp: (App) -> Unit = { app ->
@@ -217,10 +218,10 @@ fun AppDrawer(
                 val dy = change.position.y - down.position.y
                 if (!closed && DrawerGestureLogic.shouldCloseOnMove(dy, dx, startedAtTop, density)) {
                     closed = true
-                    if (ring == null) closeDrawerState.value()
+                    if (popup == null) closeDrawerState.value()
                 }
                 if (!change.pressed) {
-                    if (!closed && ring == null && DrawerGestureLogic.shouldCloseOnRelease(
+                    if (!closed && popup == null && DrawerGestureLogic.shouldCloseOnRelease(
                             dy, dx, tracker.calculateVelocity().y, startedAtTop, density
                         )
                     ) {
@@ -248,7 +249,7 @@ fun AppDrawer(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .then(if (ring != null) Modifier.blur(18.dp) else Modifier)
+            .then(Modifier)
             .then(swipeToClose)
             .nestedScroll(noTopOverscroll)
             .imePadding()
@@ -299,15 +300,16 @@ fun AppDrawer(
                         DrawerGridCell(
                             item = item,
                             onClick = { launchApp(item.app) },
-                            onRingStart = { center ->
+                            onLongPress = { center ->
                                 keyboard?.hide()
-                                ring = RingState(
-                                    item, center - rootOrigin, null, RingHit.Center,
-                                    shortcuts = onShortcuts(item.app)
+                                popup = AppPopupState(
+                                    app = item.app,
+                                    onHome = item.pinned,
+                                    canUninstall = onCanUninstall(item.app),
+                                    shortcuts = onShortcuts(item.app),
+                                    anchor = center - rootOrigin
                                 )
-                            },
-                            onRingDrag = { pos -> ring = ring?.withPointer(pos - rootOrigin, ringSlop) },
-                            onRingEnd = { ring = ring?.copy(released = true) }
+                            }
                         )
                     }
                     item(
@@ -325,15 +327,16 @@ fun AppDrawer(
                     DrawerGridCell(
                         item = item,
                         onClick = { launchApp(item.app) },
-                        onRingStart = { center ->
+                        onLongPress = { center ->
                             keyboard?.hide()
-                            ring = RingState(
-                                item, center - rootOrigin, null, RingHit.Center,
-                                shortcuts = onShortcuts(item.app)
+                            popup = AppPopupState(
+                                app = item.app,
+                                onHome = item.pinned,
+                                canUninstall = onCanUninstall(item.app),
+                                shortcuts = onShortcuts(item.app),
+                                anchor = center - rootOrigin
                             )
-                        },
-                        onRingDrag = { pos -> ring = ring?.withPointer(pos - rootOrigin, ringSlop) },
-                        onRingEnd = { ring = ring?.copy(released = true) }
+                        }
                     )
                 }
             }
@@ -348,48 +351,22 @@ fun AppDrawer(
             onLaunch = launchApp
         )
     }
-    ring?.let { current ->
-        RingMenuOverlay(
+    popup?.let { current ->
+        AppPopupOverlay(
             state = current,
-            onUpdate = { ring = it },
-            onAction = { option ->
-                val app = current.item.app
-                ring = null
-                when (option) {
-                    is RingOption.Builtin -> when (option.action) {
-                        RingAction.APP_INFO -> onAppInfo(app)
-                        RingAction.HOME -> if (current.item.pinned) onUnpin(app) else onPin(app)
-                        RingAction.UNINSTALL -> onUninstall(app)
-                    }
-                    is RingOption.Shortcut -> onLaunchShortcut(option.shortcut)
+            onAction = { action ->
+                val app = current.app
+                popup = null
+                when (action) {
+                    is AppPopupAction.AppInfo -> onAppInfo(app)
+                    is AppPopupAction.Home -> if (current.onHome) onUnpin(app) else onPin(app)
+                    is AppPopupAction.Uninstall -> onUninstall(app)
+                    is AppPopupAction.Shortcut -> onLaunchShortcut(action.shortcut)
                 }
             },
-            onDismiss = { ring = null }
+            onDismiss = { popup = null }
         )
     }
-    }
-    selected?.let { item ->
-        AppActionDialog(
-            item = item,
-            canRegenerate = state.canRegenerate,
-            onDismiss = { selected = null },
-            onPin = {
-                onPin(item.app)
-                selected = null
-            },
-            onUnpin = {
-                onUnpin(item.app)
-                selected = null
-            },
-            onAppInfo = {
-                onAppInfo(item.app)
-                selected = null
-            },
-            onRegenerate = {
-                onRegenerate(item.app)
-                selected = null
-            }
-        )
     }
 }
 
@@ -480,17 +457,13 @@ private fun DrawerSearchField(
 private fun DrawerGridCell(
     item: DrawerAppItem,
     onClick: () -> Unit,
-    onRingStart: (Offset) -> Unit,
-    onRingDrag: (Offset) -> Unit,
-    onRingEnd: () -> Unit
+    onLongPress: (Offset) -> Unit
 ) {
     var iconCenter by remember { mutableStateOf(Offset.Zero) }
     var cellOrigin by remember { mutableStateOf(Offset.Zero) }
     var cellCenter by remember { mutableStateOf(Offset.Zero) }
     val haptics = LocalHapticFeedback.current
-    val start by rememberUpdatedState(onRingStart)
-    val dragTo by rememberUpdatedState(onRingDrag)
-    val end by rememberUpdatedState(onRingEnd)
+    val longPress by rememberUpdatedState(onLongPress)
     val onClickState by rememberUpdatedState(onClick)
     Column(
         modifier = Modifier
@@ -528,16 +501,13 @@ private fun DrawerGridCell(
                         CellPressLogic.Outcome.TAP -> onClickState()
                         CellPressLogic.Outcome.LONG_PRESS -> {
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            start(if (iconCenter != Offset.Zero) iconCenter else cellCenter)
-                            dragTo(cellOrigin + down.position)
+                            longPress(if (iconCenter != Offset.Zero) iconCenter else cellCenter)
                             while (true) {
                                 val ev = awaitPointerEvent()
                                 val c = ev.changes.firstOrNull { it.id == down.id } ?: break
                                 c.consume()
-                                dragTo(cellOrigin + c.position)
                                 if (!c.pressed) break
                             }
-                            end() // release after long-press never launches
                         }
                         else -> Unit
                     }
@@ -587,221 +557,6 @@ private fun DrawerGridCell(
             )
         } else {
             Spacer(Modifier.height(7.dp))
-        }
-    }
-}
-
-@Composable
-private fun AppActionDialog(
-    item: DrawerAppItem,
-    canRegenerate: Boolean,
-    onDismiss: () -> Unit,
-    onPin: () -> Unit,
-    onUnpin: () -> Unit,
-    onAppInfo: () -> Unit,
-    onRegenerate: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(item.app.appName) },
-        text = {
-            Column {
-                if (item.pinned) {
-                    TextButton(onClick = onUnpin) { Text("Remove from home") }
-                } else {
-                    TextButton(onClick = onPin) { Text("Add to home") }
-                }
-                TextButton(onClick = onAppInfo) { Text("App info") }
-                if (canRegenerate) {
-                    TextButton(onClick = onRegenerate) { Text("Regenerate icon") }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
-}
-
-data class RingState(
-    val item: DrawerAppItem,
-    val center: Offset,
-    val pointer: Offset?,
-    val hit: RingHit,
-    val released: Boolean = false,
-    val moved: Boolean = false,
-    val press: Offset? = null,
-    val shortcuts: List<AppShortcut> = emptyList()
-)
-
-/** Update the drag pointer; remembers the press point and whether the finger really moved. */
-fun RingState.withPointer(p: Offset, slopPx: Float, released: Boolean = this.released): RingState {
-    val pressAt = press ?: p
-    val m = RingMenuLogic.movedFrom(RingPoint(pressAt.x, pressAt.y), p.x, p.y, slopPx, moved)
-    return copy(pointer = p, press = pressAt, moved = m, released = released)
-}
-
-/**
- * Radial long-press menu. Drag from the icon to an option and release to run
- * it; release on the icon keeps the ring open for a tap; Cancel or tapping
- * outside dismisses.
- */
-@Composable
-fun RingMenuOverlay(
-    state: RingState,
-    onUpdate: (RingState) -> Unit,
-    onAction: (RingOption) -> Unit,
-    onDismiss: () -> Unit
-) {
-    // Lay out only once the real container size is known (never 0x0).
-    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
-        val w = constraints.maxWidth
-        val h = constraints.maxHeight
-        if (RingMenuLogic.canLayout(w.toFloat(), h.toFloat())) {
-            RingMenuContent(state, w.toFloat(), h.toFloat(), onUpdate, onAction, onDismiss)
-        }
-    }
-}
-
-@Composable
-private fun RingMenuContent(
-    state: RingState,
-    widthPx: Float,
-    heightPx: Float,
-    onUpdate: (RingState) -> Unit,
-    onAction: (RingOption) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val density = LocalDensity.current
-    val radius = with(density) { 132.dp.toPx() }
-    val bubble = 64.dp
-    val bubblePx = with(density) { bubble.toPx() }
-    val hitPx = with(density) { 52.dp.toPx() }
-    val accent = MaterialTheme.colorScheme.primary
-    val onAccent = MaterialTheme.colorScheme.onPrimary
-    val container = MaterialTheme.colorScheme.primaryContainer
-    val onContainer = MaterialTheme.colorScheme.onPrimaryContainer
-    val items = remember(state.shortcuts) { AppShortcutLogic.ringOptions(state.shortcuts) }
-    val layout = remember(state.center, widthPx, heightPx, items) {
-        RingMenuLogic.layout(
-            state.center.x, state.center.y, radius,
-            widthPx, heightPx,
-            with(density) { 8.dp.toPx() }, with(density) { 150.dp.toPx() },
-            bubble = bubblePx, label = with(density) { 28.dp.toPx() },
-            cancelW = with(density) { 132.dp.toPx() }, cancelH = with(density) { 48.dp.toPx() },
-            items = items
-        )
-    }
-    val hit = state.pointer?.let {
-        RingMenuLogic.hitTest(layout, state.center.x, state.center.y, it.x, it.y, hitPx)
-    } ?: RingHit.Center
-    // Drag-release resolution.
-    LaunchedEffect(state.released) {
-        if (!state.released) return@LaunchedEffect
-        when (RingMenuLogic.onRelease(hit, state.moved)) {
-            RingMenuLogic.Release.ACTION -> onAction((hit as RingHit.Option).option)
-            RingMenuLogic.Release.DISMISS -> onDismiss()
-            RingMenuLogic.Release.KEEP_OPEN ->
-                onUpdate(state.copy(released = false, pointer = null, press = null, moved = false))
-        }
-    }
-    val dismissTap by rememberUpdatedState(onDismiss)
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.45f))
-            .pointerInput(layout) {
-                detectTapGestures { p ->
-                    when (val h = RingMenuLogic.hitTest(layout, state.center.x, state.center.y, p.x, p.y, hitPx)) {
-                        is RingHit.Option -> onAction(h.option)
-                        RingHit.Center -> Unit
-                        else -> dismissTap()
-                    }
-                }
-            }
-    ) {
-        state.pointer?.let { p ->
-            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
-                drawLine(
-                    color = Color.White.copy(alpha = 0.8f),
-                    start = state.center,
-                    end = p,
-                    strokeWidth = 6.dp.toPx(),
-                    cap = androidx.compose.ui.graphics.StrokeCap.Round
-                )
-            }
-        }
-        val iconImage = remember(state.item.icon) { state.item.icon?.asImageBitmap() }
-        val iconPx = with(density) { (AppDrawerGrid.ICON_DP * 1.2f).dp.toPx() }
-        iconImage?.let {
-            Image(
-                bitmap = it,
-                contentDescription = state.item.app.appName,
-                modifier = Modifier
-                    .offset { IntOffset((state.center.x - iconPx / 2).roundToInt(), (state.center.y - iconPx / 2).roundToInt()) }
-                    .size((AppDrawerGrid.ICON_DP * 1.2f).dp)
-            )
-        }
-        Text(
-            RingMenuLogic.HINT,
-            fontSize = 13.sp,
-            color = Color.White.copy(alpha = 0.9f),
-            modifier = Modifier.offset {
-                IntOffset(
-                    (layout.hint.x - with(density) { 64.dp.toPx() }).roundToInt(),
-                    (layout.hint.y - with(density) { 10.dp.toPx() }).roundToInt()
-                )
-            }.size(width = 128.dp, height = 20.dp),
-            textAlign = TextAlign.Center,
-            maxLines = 1
-        )
-        for ((option, p) in layout.options) {
-            val hot = hit is RingHit.Option && hit.option == option
-            val label = AppShortcutLogic.label(option, state.item.pinned)
-            val glyph = AppShortcutLogic.glyph(option, state.item.pinned)
-            val scale = if (hot) 1.18f else 1f
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.offset {
-                    IntOffset((p.x - bubblePx).roundToInt(), (p.y - bubblePx / 2).roundToInt())
-                }.size(width = bubble * 2, height = bubble + 36.dp)
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(bubble)
-                        .graphicsLayer { scaleX = scale; scaleY = scale }
-                        .background(if (hot) accent else container, CircleShape)
-                        .border(2.dp, accent, CircleShape)
-                ) {
-                    Text(glyph, fontSize = if (option is RingOption.Shortcut) 20.sp else 24.sp, color = if (hot) onAccent else onContainer)
-                }
-                Text(
-                    label,
-                    fontSize = 12.sp,
-                    color = Color.White,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-        }
-        val cancelHot = hit == RingHit.Cancel
-        val cw = with(density) { 132.dp.toPx() }
-        val ch = with(density) { 48.dp.toPx() }
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .offset { IntOffset((layout.cancel.x - cw / 2).roundToInt(), (layout.cancel.y - ch / 2).roundToInt()) }
-                .size(132.dp, 48.dp)
-                .background(
-                    if (cancelHot) Color.White.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.18f),
-                    CircleShape
-                )
-                .border(1.dp, Color.White.copy(alpha = 0.7f), CircleShape)
-        ) {
-            Text("×  Cancel", color = if (cancelHot) Color.Black else Color.White, fontSize = 15.sp)
         }
     }
 }

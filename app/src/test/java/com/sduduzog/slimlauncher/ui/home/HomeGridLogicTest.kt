@@ -59,6 +59,34 @@ class HomeGridLogicTest {
     }
 
     @Test
+    fun membershipIsExactLauncherOnVisibleGrid() {
+        val home = (0 until 3).map { app("a$it", it) }
+        assertThat(HomeGridLogic.isOnHome(home, "pkg.a0", "Act", 0L)).isTrue()
+        assertThat(HomeGridLogic.isOnHome(home, "pkg.a0", "Other", 0L)).isFalse()
+        val staleHome = home + HomeApp("Gone", "pkg.gone", "Old", 3, null, 0L)
+        val installed = listOf(
+            com.sduduzog.slimlauncher.data.model.App("a0", "pkg.a0", "Act", 0L),
+            com.sduduzog.slimlauncher.data.model.App("a1", "pkg.a1", "Act", 0L),
+            com.sduduzog.slimlauncher.data.model.App("a2", "pkg.a2", "Act", 0L)
+        )
+        assertThat(HomeGridLogic.stale(staleHome, installed).map { it.packageName })
+            .containsExactly("pkg.gone")
+    }
+
+    @Test
+    fun extrasBeyondMaxAreNotOnHome() {
+        val home = (0 until HomeGridLogic.MAX + 2).map { app("a$it", it) }
+        val lastVisible = home[HomeGridLogic.MAX - 1]
+        val overflow = home[HomeGridLogic.MAX]
+        assertThat(
+            HomeGridLogic.isOnHome(home, lastVisible.packageName, lastVisible.activityName, 0L)
+        ).isTrue()
+        assertThat(
+            HomeGridLogic.isOnHome(home, overflow.packageName, overflow.activityName, 0L)
+        ).isFalse()
+    }
+
+    @Test
     fun reorderMovesSlotsAndRewritesLogicalIndices() {
         val apps = listOf(app("a", 0), app("b", 1), app("c", 2), app("d", 3))
         val slots = HomeGridLogic.visualSlots(apps)

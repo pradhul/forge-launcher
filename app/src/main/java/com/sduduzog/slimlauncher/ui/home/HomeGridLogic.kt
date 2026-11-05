@@ -1,5 +1,6 @@
 package com.sduduzog.slimlauncher.ui.home
 
+import com.sduduzog.slimlauncher.data.model.App
 import com.sduduzog.slimlauncher.models.HomeApp
 
 sealed class HomeSlot {
@@ -19,6 +20,30 @@ object HomeGridLogic {
     fun canAdd(currentCount: Int): Boolean = currentCount < MAX
 
     fun <T> apps(favourites: List<T>): List<T> = favourites.take(MAX)
+
+    /**
+     * True only if this exact launcher is in the visible home grid
+     * (including the bottom row). Package-only matches are not enough —
+     * leftover dock rows and sibling activities must not count.
+     */
+    fun isOnHome(
+        home: List<HomeApp>,
+        packageName: String,
+        activityName: String,
+        userSerial: Long
+    ): Boolean {
+        return apps(home).any {
+            it.packageName == packageName &&
+                it.activityName == activityName &&
+                it.userSerial == userSerial
+        }
+    }
+
+    /** Home rows whose launcher is no longer installed. */
+    fun stale(home: List<HomeApp>, installed: List<App>): List<HomeApp> {
+        val live = installed.map { Triple(it.packageName, it.activityName, it.userSerial) }.toSet()
+        return home.filter { Triple(it.packageName, it.activityName, it.userSerial) !in live }
+    }
 
     /**
      * Cells for a bottom-anchored 4-column grid. The first [COLUMNS] apps

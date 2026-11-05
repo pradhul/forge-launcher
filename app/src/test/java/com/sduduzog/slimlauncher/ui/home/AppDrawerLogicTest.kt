@@ -26,11 +26,16 @@ class AppDrawerLogicTest {
     }
 
     @Test
-    fun pinLookupUsesPackageAndUser() {
-        val home = listOf("com.android.chrome" to 0L)
-        assertThat(AppDrawerLogic.isPinned(home, "com.android.chrome", 0L)).isTrue()
-        assertThat(AppDrawerLogic.isPinned(home, "com.android.chrome", 10L)).isFalse()
-        assertThat(AppDrawerLogic.isPinned(home, "com.android.camera", 0L)).isFalse()
+    fun pinLookupUsesPackageActivityAndUserOnVisibleHome() {
+        val home = listOf(
+            com.sduduzog.slimlauncher.models.HomeApp(
+                "Chrome", "com.android.chrome", "Main", 0, null, 0L
+            )
+        )
+        assertThat(AppDrawerLogic.isPinned(home, "com.android.chrome", "Main", 0L)).isTrue()
+        assertThat(AppDrawerLogic.isPinned(home, "com.android.chrome", "CustomTab", 0L)).isFalse()
+        assertThat(AppDrawerLogic.isPinned(home, "com.android.chrome", "Main", 10L)).isFalse()
+        assertThat(AppDrawerLogic.isPinned(home, "com.android.camera", "c", 0L)).isFalse()
     }
 
     @Test
