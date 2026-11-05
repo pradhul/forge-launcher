@@ -8,7 +8,7 @@ object IconCacheLogic {
     const val MAX_ENTRIES = 256
 
     /** Bump to drop bitmaps rendered by an older icon pipeline. */
-    const val KEY_VERSION = 5
+    const val KEY_VERSION = 6
 
     fun key(
         packageName: String,
@@ -31,7 +31,7 @@ object IconCacheLogic {
     }
 
     /**
-     * Single source of truth for what an icon surface asks for. Home, dock and
+     * Single source of truth for what an icon surface asks for. Home and
      * drawer all resolve through this, so they share style, palette and cache.
      */
     fun request(

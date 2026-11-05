@@ -11,7 +11,9 @@ class RingMenuLogicTest {
     fun threeOptionsInOrderAboveIconWithCancelBelow() {
         val l = lay(540f, 1200f)
         assertThat(l.options.map { it.first }).containsExactly(
-            RingAction.APP_INFO, RingAction.DOCK, RingAction.UNINSTALL
+            RingOption.Builtin(RingAction.APP_INFO),
+            RingOption.Builtin(RingAction.HOME),
+            RingOption.Builtin(RingAction.UNINSTALL)
         ).inOrder()
         assertThat(l.flipped).isFalse()
         l.options.forEach { assertThat(it.second.y).isLessThan(1200f) }
@@ -37,9 +39,9 @@ class RingMenuLogicTest {
     @Test
     fun hitTestPicksOptionCancelCenterOrNone() {
         val l = lay(540f, 1200f)
-        val dock = l.options[1].second
-        assertThat(RingMenuLogic.hitTest(l, 540f, 1200f, dock.x + 10f, dock.y, 140f))
-            .isEqualTo(RingHit.Option(RingAction.DOCK))
+        val home = l.options[1].second
+        assertThat(RingMenuLogic.hitTest(l, 540f, 1200f, home.x + 10f, home.y, 140f))
+            .isEqualTo(RingHit.Option(RingOption.Builtin(RingAction.HOME)))
         assertThat(RingMenuLogic.hitTest(l, 540f, 1200f, l.cancel.x, l.cancel.y, 140f)).isEqualTo(RingHit.Cancel)
         assertThat(RingMenuLogic.hitTest(l, 540f, 1200f, 545f, 1195f, 140f)).isEqualTo(RingHit.Center)
         assertThat(RingMenuLogic.hitTest(l, 540f, 1200f, 1000f, 2300f, 140f)).isEqualTo(RingHit.None)
@@ -170,13 +172,13 @@ class RingMenuCornerTest {
 
     @Test
     fun stationaryHoldReleaseKeepsRingOpen() {
-        for (h in listOf(RingHit.Cancel, RingHit.None, RingHit.Center, RingHit.Option(RingAction.DOCK)))
+        for (h in listOf(RingHit.Cancel, RingHit.None, RingHit.Center, RingHit.Option(RingOption.Builtin(RingAction.HOME))))
             assertThat(RingMenuLogic.onRelease(h, moved = false)).isEqualTo(RingMenuLogic.Release.KEEP_OPEN)
     }
 
     @Test
     fun dragReleaseActsOrDismisses() {
-        assertThat(RingMenuLogic.onRelease(RingHit.Option(RingAction.APP_INFO), true)).isEqualTo(RingMenuLogic.Release.ACTION)
+        assertThat(RingMenuLogic.onRelease(RingHit.Option(RingOption.Builtin(RingAction.APP_INFO)), true)).isEqualTo(RingMenuLogic.Release.ACTION)
         assertThat(RingMenuLogic.onRelease(RingHit.Cancel, true)).isEqualTo(RingMenuLogic.Release.DISMISS)
         assertThat(RingMenuLogic.onRelease(RingHit.None, true)).isEqualTo(RingMenuLogic.Release.DISMISS)
         assertThat(RingMenuLogic.onRelease(RingHit.Center, true)).isEqualTo(RingMenuLogic.Release.KEEP_OPEN)

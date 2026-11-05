@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.sduduzog.slimlauncher.data.model.App
 import com.sduduzog.slimlauncher.icons.IconPreferences
 import com.sduduzog.slimlauncher.icons.InstalledAppsQuery
+import com.sduduzog.slimlauncher.ui.home.HomeGridLogic
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
@@ -29,7 +30,7 @@ class MainViewModel @Inject constructor(
                 prefs.homeDefaultsSeeded = true
                 return@launch
             }
-            val defaults = HomeDefaults.pick(installedAppsQuery.load())
+            val defaults = HomeDefaults.pick(installedAppsQuery.load(), HomeGridLogic.DEFAULT_COUNT)
             defaults.forEachIndexed { index, app ->
                 repository.add(HomeApp.from(app, index))
             }
@@ -43,7 +44,9 @@ class MainViewModel @Inject constructor(
                 it.packageName == app.packageName && it.userSerial == app.userSerial
             }
             if (already) return@launch
-            repository.add(HomeApp.from(app, repository.countApps()))
+            val count = repository.countApps()
+            if (!HomeGridLogic.canAdd(count)) return@launch
+            repository.add(HomeApp.from(app, count))
         }
     }
 
@@ -59,6 +62,12 @@ class MainViewModel @Inject constructor(
                 it.packageName == packageName && it.userSerial == userSerial
             } ?: return@launch
             repository.remove(match)
+        }
+    }
+
+    fun reorder(apps: List<HomeApp>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.update(*apps.toTypedArray())
         }
     }
 }

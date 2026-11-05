@@ -96,6 +96,8 @@ fun AppDrawerOverlay(
     onAppInfo: (App) -> Unit,
     onRegenerate: (App) -> Unit,
     onUninstall: (App) -> Unit = {},
+    onShortcuts: (App) -> List<AppShortcut> = { emptyList() },
+    onLaunchShortcut: (AppShortcut) -> Unit = {},
     onClose: () -> Unit
 ) {
     val motion = remember {
@@ -132,7 +134,7 @@ fun AppDrawerOverlay(
             .graphicsLayer {
                 val value = progress.value
                 this.alpha = value
-                translationY = (1f - value) * 32f
+                translationY = (1f - value) * 12f
             }
     ) {
         if (DrawerBlurLogic.shouldDrawBitmapBackdrop(mode, bitmap != null, state.drawerBlurPercent)) {
@@ -160,6 +162,8 @@ fun AppDrawerOverlay(
             onAppInfo = onAppInfo,
             onRegenerate = onRegenerate,
             onUninstall = onUninstall,
+            onShortcuts = onShortcuts,
+            onLaunchShortcut = onLaunchShortcut,
             onClose = onClose
         )
     }
@@ -176,6 +180,8 @@ fun AppDrawer(
     onAppInfo: (App) -> Unit,
     onRegenerate: (App) -> Unit,
     onUninstall: (App) -> Unit = {},
+    onShortcuts: (App) -> List<AppShortcut> = { emptyList() },
+    onLaunchShortcut: (AppShortcut) -> Unit = {},
     onClose: () -> Unit
 ) {
     var ring by remember { mutableStateOf<RingState?>(null) }
@@ -294,7 +300,10 @@ fun AppDrawer(
                             onClick = { launchApp(item.app) },
                             onRingStart = { center ->
                                 keyboard?.hide()
-                                ring = RingState(item, center - rootOrigin, null, RingHit.Center)
+                                ring = RingState(
+                                    item, center - rootOrigin, null, RingHit.Center,
+                                    shortcuts = onShortcuts(item.app)
+                                )
                             },
                             onRingDrag = { pos -> ring = ring?.withPointer(pos - rootOrigin, ringSlop) },
                             onRingEnd = { ring = ring?.copy(released = true) }
@@ -317,7 +326,10 @@ fun AppDrawer(
                         onClick = { launchApp(item.app) },
                         onRingStart = { center ->
                             keyboard?.hide()
-                            ring = RingState(item, center - rootOrigin, null, RingHit.Center)
+                            ring = RingState(
+                                item, center - rootOrigin, null, RingHit.Center,
+                                shortcuts = onShortcuts(item.app)
+                            )
                         },
                         onRingDrag = { pos -> ring = ring?.withPointer(pos - rootOrigin, ringSlop) },
                         onRingEnd = { ring = ring?.copy(released = true) }
@@ -339,13 +351,16 @@ fun AppDrawer(
         RingMenuOverlay(
             state = current,
             onUpdate = { ring = it },
-            onAction = { action ->
+            onAction = { option ->
                 val app = current.item.app
                 ring = null
-                when (action) {
-                    RingAction.APP_INFO -> onAppInfo(app)
-                    RingAction.DOCK -> if (current.item.pinned) onUnpin(app) else onPin(app)
-                    RingAction.UNINSTALL -> onUninstall(app)
+                when (option) {
+                    is RingOption.Builtin -> when (option.action) {
+                        RingAction.APP_INFO -> onAppInfo(app)
+                        RingAction.HOME -> if (current.item.pinned) onUnpin(app) else onPin(app)
+                        RingAction.UNINSTALL -> onUninstall(app)
+                    }
+                    is RingOption.Shortcut -> onLaunchShortcut(option.shortcut)
                 }
             },
             onDismiss = { ring = null }
@@ -614,7 +629,8 @@ data class RingState(
     val hit: RingHit,
     val released: Boolean = false,
     val moved: Boolean = false,
-    val press: Offset? = null
+    val press: Offset? = null,
+    val shortcuts: List<AppShortcut> = emptyList()
 )
 
 /** Update the drag pointer; remembers the press point and whether the finger really moved. */
@@ -633,7 +649,7 @@ fun RingState.withPointer(p: Offset, slopPx: Float, released: Boolean = this.rel
 fun RingMenuOverlay(
     state: RingState,
     onUpdate: (RingState) -> Unit,
-    onAction: (RingAction) -> Unit,
+    onAction: (RingOption) -> Unit,
     onDismiss: () -> Unit
 ) {
     // Lay out only once the real container size is known (never 0x0).
@@ -652,7 +668,7 @@ private fun RingMenuContent(
     widthPx: Float,
     heightPx: Float,
     onUpdate: (RingState) -> Unit,
-    onAction: (RingAction) -> Unit,
+    onAction: (RingOption) -> Unit,
     onDismiss: () -> Unit
 ) {
     val density = LocalDensity.current
@@ -664,13 +680,15 @@ private fun RingMenuContent(
     val onAccent = MaterialTheme.colorScheme.onPrimary
     val container = MaterialTheme.colorScheme.primaryContainer
     val onContainer = MaterialTheme.colorScheme.onPrimaryContainer
-    val layout = remember(state.center, widthPx, heightPx) {
+    val items = remember(state.shortcuts) { AppShortcutLogic.ringOptions(state.shortcuts) }
+    val layout = remember(state.center, widthPx, heightPx, items) {
         RingMenuLogic.layout(
             state.center.x, state.center.y, radius,
             widthPx, heightPx,
             with(density) { 8.dp.toPx() }, with(density) { 150.dp.toPx() },
             bubble = bubblePx, label = with(density) { 28.dp.toPx() },
-            cancelW = with(density) { 132.dp.toPx() }, cancelH = with(density) { 48.dp.toPx() }
+            cancelW = with(density) { 132.dp.toPx() }, cancelH = with(density) { 48.dp.toPx() },
+            items = items
         )
     }
     val hit = state.pointer?.let {
@@ -680,7 +698,7 @@ private fun RingMenuContent(
     LaunchedEffect(state.released) {
         if (!state.released) return@LaunchedEffect
         when (RingMenuLogic.onRelease(hit, state.moved)) {
-            RingMenuLogic.Release.ACTION -> onAction((hit as RingHit.Option).action)
+            RingMenuLogic.Release.ACTION -> onAction((hit as RingHit.Option).option)
             RingMenuLogic.Release.DISMISS -> onDismiss()
             RingMenuLogic.Release.KEEP_OPEN ->
                 onUpdate(state.copy(released = false, pointer = null, press = null, moved = false))
@@ -694,7 +712,7 @@ private fun RingMenuContent(
             .pointerInput(layout) {
                 detectTapGestures { p ->
                     when (val h = RingMenuLogic.hitTest(layout, state.center.x, state.center.y, p.x, p.y, hitPx)) {
-                        is RingHit.Option -> onAction(h.action)
+                        is RingHit.Option -> onAction(h.option)
                         RingHit.Center -> Unit
                         else -> dismissTap()
                     }
@@ -723,24 +741,29 @@ private fun RingMenuContent(
                     .size((AppDrawerGrid.ICON_DP * 1.2f).dp)
             )
         }
-        for ((action, p) in layout.options) {
-            val hot = hit is RingHit.Option && hit.action == action
-            val label = when (action) {
-                RingAction.APP_INFO -> "App info"
-                RingAction.DOCK -> if (state.item.pinned) "Remove from dock" else "Add to dock"
-                RingAction.UNINSTALL -> "Uninstall"
-            }
-            val glyph = when (action) {
-                RingAction.APP_INFO -> "i"
-                RingAction.DOCK -> if (state.item.pinned) "−" else "+"
-                RingAction.UNINSTALL -> "—"
-            }
+        Text(
+            RingMenuLogic.HINT,
+            fontSize = 13.sp,
+            color = Color.White.copy(alpha = 0.9f),
+            modifier = Modifier.offset {
+                IntOffset(
+                    (layout.hint.x - with(density) { 64.dp.toPx() }).roundToInt(),
+                    (layout.hint.y - with(density) { 10.dp.toPx() }).roundToInt()
+                )
+            }.size(width = 128.dp, height = 20.dp),
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+        for ((option, p) in layout.options) {
+            val hot = hit is RingHit.Option && hit.option == option
+            val label = AppShortcutLogic.label(option, state.item.pinned)
+            val glyph = AppShortcutLogic.glyph(option, state.item.pinned)
             val scale = if (hot) 1.18f else 1f
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.offset {
                     IntOffset((p.x - bubblePx).roundToInt(), (p.y - bubblePx / 2).roundToInt())
-                }.size(width = bubble * 2, height = bubble + 28.dp)
+                }.size(width = bubble * 2, height = bubble + 36.dp)
             ) {
                 Box(
                     contentAlignment = Alignment.Center,
@@ -750,9 +773,17 @@ private fun RingMenuContent(
                         .background(if (hot) accent else container, CircleShape)
                         .border(2.dp, accent, CircleShape)
                 ) {
-                    Text(glyph, fontSize = 24.sp, color = if (hot) onAccent else onContainer)
+                    Text(glyph, fontSize = if (option is RingOption.Shortcut) 20.sp else 24.sp, color = if (hot) onAccent else onContainer)
                 }
-                Text(label, fontSize = 13.sp, color = Color.White, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
+                Text(
+                    label,
+                    fontSize = 12.sp,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
         }
         val cancelHot = hit == RingHit.Cancel

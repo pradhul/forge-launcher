@@ -38,11 +38,13 @@ class DrawerGestureLogicTest {
     }
 
     @Test
-    fun dockHasFourSlotsFromFavourites() {
+    fun homeGridKeepsAllRowsIncludingTheBottom() {
         val favs = listOf("a", "b", "c", "d", "e")
-        assertThat(DockLogic.slots(favs)).containsExactly("a", "b", "c", "d").inOrder()
-        assertThat(DockLogic.slots(listOf("a"))).containsExactly("a")
-        assertThat(DockLogic.canAdd(3)).isTrue()
-        assertThat(DockLogic.canAdd(4)).isFalse()
+        assertThat(HomeGridLogic.apps(favs)).containsExactly("a", "b", "c", "d", "e").inOrder()
+        assertThat(HomeGridLogic.apps(listOf("a"))).containsExactly("a")
+        assertThat(HomeGridLogic.canAdd(3)).isTrue()
+        assertThat(HomeGridLogic.canAdd(4)).isTrue()
+        assertThat(HomeGridLogic.canAdd(HomeGridLogic.MAX)).isFalse()
+        assertThat(HomeGridLogic.COLUMNS).isEqualTo(4)
     }
 }

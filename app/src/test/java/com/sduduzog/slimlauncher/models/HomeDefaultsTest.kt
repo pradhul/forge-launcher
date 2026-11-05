@@ -26,7 +26,8 @@ class HomeDefaultsTest {
             "com.android.chrome",
             "com.google.android.GoogleCamera",
             "com.android.settings",
-            "com.android.vending"
+            "com.android.vending",
+            "com.google.android.apps.maps"
         ).inOrder()
     }
 

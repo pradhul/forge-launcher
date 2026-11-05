@@ -2,6 +2,7 @@ package com.sduduzog.slimlauncher.icons
 
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.sqrt
 
 /** Glyph alpha (0..255 per pixel) plus quality metrics. */
@@ -158,7 +159,9 @@ object GlyphExtractor {
         return IntArray(glyph.size) { i ->
             val s = shape[i]
             if (s == 0) 0 else {
-                val t = glyph[i] / 255f
+                val x = glyph[i] / 255f
+                // Steepen mid-alphas so the glyph reads as ink, not haze.
+                val t = if (x <= 0f) 0f else if (x >= 1f) 1f else x.toDouble().pow(0.62).toFloat()
                 fun ch(sh: Int): Int {
                     val b = bg ushr sh and 0xFF; val f = fg ushr sh and 0xFF
                     return (b + (f - b) * t).toInt()

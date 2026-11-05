@@ -9,9 +9,9 @@ import kotlin.math.abs
  */
 object DrawerGestureLogic {
     /** Distance (dp) before a vertical swipe commits. */
-    const val COMMIT_DP = 36f
+    const val COMMIT_DP = 24f
     /** Fling velocity (dp/s) that commits even a short swipe on release. */
-    const val FLING_DP_PER_S = 700f
+    const val FLING_DP_PER_S = 480f
     /** Vertical must dominate horizontal by this factor. */
     const val DOMINANCE = 1.3f
 
@@ -42,14 +42,4 @@ object DrawerGestureLogic {
         if (-dy <= 8f * density || !isVertical(dx, dy)) return false
         return -velocityY > FLING_DP_PER_S * density || -dy > COMMIT_DP * density
     }
-}
-
-/** Home dock: fixed 4 slots backed by the existing favourites list. */
-object DockLogic {
-    const val SLOTS = 4
-
-    /** First [SLOTS] favourites (by stored order) become the dock. */
-    fun <T> slots(favourites: List<T>): List<T> = favourites.take(SLOTS)
-
-    fun canAdd(currentCount: Int): Boolean = currentCount < SLOTS
 }

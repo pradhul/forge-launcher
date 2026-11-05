@@ -16,9 +16,9 @@ data class ThemedColors(val background: Int, val foreground: Int)
  * dark = bg tone 22 / glyph tone 88. Contrast is pushed to WCAG >= 4.5.
  */
 object ThemedIconPalette {
-    const val MIN_CONTRAST = 7.0
-    const val MIN_SATURATION = 0.70
-    const val BG_SATURATION = 0.80
+    const val MIN_CONTRAST = 10.0
+    const val MIN_SATURATION = 0.82
+    const val BG_SATURATION = 0.92
 
     fun hue(c: Int): Double = toHsl(c)[0]
 
@@ -33,17 +33,23 @@ object ThemedIconPalette {
     fun forTheme(theme: PackTheme): ThemedColors = colors(theme.accent, theme.darkSurface)
 
     fun colors(seed: Int, dark: Boolean): ThemedColors {
-        // v23: richer, saturated plate + crisp glyph, >= 7:1 contrast.
-        var bgTone = if (dark) 28.0 else 84.0
-        var fgTone = if (dark) 92.0 else 20.0
-        fun bgOf(t: Double) = tone(seed, t, 1.6, BG_SATURATION)
-        fun fgOf(t: Double) = tone(seed, t, 1.2, MIN_SATURATION)
+        // Richer plate + punchier glyph, pushed to >= 10:1. Prefer moving
+        // the plate (darker/lighter) over bleaching the glyph toward white.
+        var bgTone = if (dark) 16.0 else 86.0
+        var fgTone = if (dark) 92.0 else 14.0
+        fun bgOf(t: Double) = tone(seed, t, 1.85, BG_SATURATION)
+        fun fgOf(t: Double) = tone(seed, t, 1.45, MIN_SATURATION)
         var bg = bgOf(bgTone)
         var fg = fgOf(fgTone)
         var guard = 0
         while (contrast(bg, fg) < MIN_CONTRAST && guard++ < 60) {
-            if (dark) { fgTone = min(99.0, fgTone + 1.0); bgTone = max(8.0, bgTone - 1.0) }
-            else { fgTone = max(4.0, fgTone - 1.0); bgTone = min(97.0, bgTone + 1.0) }
+            if (dark) {
+                if (bgTone > 8.0) bgTone = max(8.0, bgTone - 1.5)
+                else fgTone = min(94.0, fgTone + 1.0)
+            } else {
+                if (bgTone < 96.0) bgTone = min(96.0, bgTone + 1.5)
+                else fgTone = max(6.0, fgTone - 1.0)
+            }
             bg = bgOf(bgTone)
             fg = fgOf(fgTone)
         }

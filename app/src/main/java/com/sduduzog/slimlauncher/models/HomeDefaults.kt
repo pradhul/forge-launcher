@@ -69,7 +69,7 @@ object HomeDefaults {
         )
     )
 
-    fun pick(installed: List<App>, limit: Int = 6): List<App> {
+    fun pick(installed: List<App>, limit: Int = 8): List<App> {
         if (installed.isEmpty() || limit <= 0) return emptyList()
         val remaining = installed.toMutableList()
         val picked = mutableListOf<App>()

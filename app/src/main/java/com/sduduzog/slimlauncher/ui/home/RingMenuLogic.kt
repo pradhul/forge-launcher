@@ -4,19 +4,20 @@ import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.sin
 
-enum class RingAction { APP_INFO, DOCK, UNINSTALL }
+enum class RingAction { APP_INFO, HOME, UNINSTALL }
 
 data class RingPoint(val x: Float, val y: Float)
 
 data class RingLayout(
-    val options: List<Pair<RingAction, RingPoint>>,
+    val options: List<Pair<RingOption, RingPoint>>,
     val cancel: RingPoint,
-    val flipped: Boolean
+    val flipped: Boolean,
+    val hint: RingPoint
 )
 
 /** Sentinel results of a hit test besides an option. */
 sealed class RingHit {
-    data class Option(val action: RingAction) : RingHit()
+    data class Option(val option: RingOption) : RingHit()
     object Cancel : RingHit()
     object Center : RingHit()
     object None : RingHit()
@@ -34,10 +35,11 @@ internal fun Float.safeCoerce(min: Float, max: Float): Float {
 }
 
 object RingMenuLogic {
-    val ORDER = listOf(RingAction.APP_INFO, RingAction.DOCK, RingAction.UNINSTALL)
+    val ORDER = AppShortcutLogic.BUILTINS
 
-    /** Angular step between neighbouring bubbles (degrees). */
+    /** Angular step between neighbouring bubbles (degrees) for the 3 builtins. */
     const val STEP_DEG = 55f
+    const val HINT = "Drag to select"
 
     data class Rect(val l: Float, val t: Float, val r: Float, val b: Float) {
         fun overlaps(o: Rect) = l < o.r && o.l < r && t < o.b && o.t < b
@@ -72,8 +74,11 @@ object RingMenuLogic {
         bubble: Float = radius * 64f / 132f,
         label: Float = radius * 28f / 132f,
         cancelW: Float = radius,
-        cancelH: Float = radius * 48f / 132f
+        cancelH: Float = radius * 48f / 132f,
+        items: List<RingOption> = AppShortcutLogic.ringOptions()
     ): RingLayout {
+        val options = items.ifEmpty { AppShortcutLogic.BUILTINS }
+        val count = options.size.coerceAtLeast(1)
         // Options go up when there is room; Cancel then sits below the icon
         // (shifted fully on screen). Near the top, options flip below and
         // Cancel goes above.
@@ -109,11 +114,12 @@ object RingMenuLogic {
         val preferred = if (roomAbove) 270f - 50f * t else 90f + 50f * t
 
         fun build(center: Float, r: Float, step: Float = STEP_DEG): List<RingPoint> {
-            // Keep App info / Dock / Uninstall reading left -> right.
+            // Keep App info / Home / Uninstall reading left -> right, then shortcuts.
             val up = sin(Math.toRadians(center.toDouble())) <= 0
             val dir = if (up) 1f else -1f
-            return (0 until 3).map { i ->
-                val a = Math.toRadians((center + dir * (i - 1) * step).toDouble())
+            val mid = (count - 1) / 2f
+            return (0 until count).map { i ->
+                val a = Math.toRadians((center + dir * (i - mid) * step).toDouble())
                 RingPoint((cx + r * cos(a)).toFloat(), (cy + r * sin(a)).toFloat())
             }
         }
@@ -131,7 +137,13 @@ object RingMenuLogic {
         var cancelP = cancelCandidates.first()
         search@ for (cp in cancelCandidates) {
             val cRect = cancelRect(cp, cancelW, cancelH)
-            for (scale in floatArrayOf(1f, 1.15f, 1.3f, 1.5f, 1.7f)) for (step in floatArrayOf(STEP_DEG, 45f, 42f, 38f)) {
+            val steps = if (count <= 3) {
+                floatArrayOf(STEP_DEG, 45f, 42f, 38f)
+            } else {
+                val tight = (STEP_DEG * 2f / (count - 1)).coerceIn(26f, STEP_DEG)
+                floatArrayOf(tight, tight * 0.9f, 38f, 32f, 28f)
+            }
+            for (scale in floatArrayOf(1f, 1.15f, 1.3f, 1.5f, 1.7f, 1.95f)) for (step in steps) {
                 for (c in candidates) {
                     val pts = build(c, radius * scale, step)
                     if (fits(pts, cRect)) { chosen = pts; chosenCenter = c; cancelP = cp; break@search }
@@ -146,7 +158,12 @@ object RingMenuLogic {
             )
         }
         val flipped = sin(Math.toRadians(chosenCenter.toDouble())) > 0
-        return RingLayout(ORDER.zip(pts), cancelP, flipped)
+        val hint = RingPoint(
+            cx.safeCoerce(margin, width - margin),
+            (if (flipped) cy - bubble else cy + bubble)
+                .safeCoerce(margin + label, height - margin - label)
+        )
+        return RingLayout(options.zip(pts), cancelP, flipped, hint)
     }
 
     private fun angDist(a: Float, b: Float): Float {
@@ -183,11 +200,11 @@ object RingMenuLogic {
         py: Float,
         hitRadius: Float
     ): RingHit {
-        var best: RingAction? = null
+        var best: RingOption? = null
         var bestD = Float.MAX_VALUE
-        for ((action, p) in layout.options) {
+        for ((option, p) in layout.options) {
             val d = hypot(px - p.x, py - p.y)
-            if (d < hitRadius && d < bestD) { best = action; bestD = d }
+            if (d < hitRadius && d < bestD) { best = option; bestD = d }
         }
         if (best != null) return RingHit.Option(best)
         if (hypot(px - layout.cancel.x, py - layout.cancel.y) < hitRadius) return RingHit.Cancel

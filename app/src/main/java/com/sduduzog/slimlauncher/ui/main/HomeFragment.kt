@@ -12,7 +12,9 @@ import android.content.pm.LauncherApps
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Process
 import android.os.UserManager
+import android.content.pm.LauncherApps.ShortcutQuery
 import android.view.WindowManager
 import android.provider.AlarmClock
 import android.provider.CalendarContract
@@ -24,11 +26,14 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import com.sduduzog.slimlauncher.diag.AboutDebugLog
-import com.sduduzog.slimlauncher.ui.home.DockLogic
+import com.sduduzog.slimlauncher.ui.home.AppShortcut
+import com.sduduzog.slimlauncher.ui.home.AppShortcutLogic
 import com.sduduzog.slimlauncher.ui.home.DrawerAppItem
+import com.sduduzog.slimlauncher.ui.home.HomeGridLogic
 import com.sduduzog.slimlauncher.ui.home.RingAction
 import com.sduduzog.slimlauncher.ui.home.RingHit
 import com.sduduzog.slimlauncher.ui.home.RingMenuOverlay
+import com.sduduzog.slimlauncher.ui.home.RingOption
 import com.sduduzog.slimlauncher.ui.home.RingState
 import com.sduduzog.slimlauncher.widgets.PageSwipeLogic
 import com.sduduzog.slimlauncher.widgets.WidgetsPage
@@ -109,6 +114,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     private var widgetsPage: WidgetsPage? = null
     private var widgetsOpen = false
     private var dockRing by mutableStateOf<RingState?>(null)
+    private var pendingHomeRing: Pair<HomeApp, View>? = null
     private val pickWidget = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         widgetsPage?.onPickResult(it.resultCode == android.app.Activity.RESULT_OK, it.data)
     }
@@ -126,13 +132,20 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         savedInstanceState: Bundle?
     ): View {
         _binding = HomeFragmentBinding.inflate(inflater, container, false)
-        adapter = HomeAdapter(this, iconResolver, onLongPress = ::showDockRing)
+        adapter = HomeAdapter(
+            this,
+            iconResolver,
+            onLongPressReady = { app, view -> pendingHomeRing = app to view },
+            onLongPressUp = { releaseHomeLongPress() },
+            onReorder = { viewModel.reorder(it) }
+        )
         binding!!.homeFragmentList.setHasFixedSize(true)
         binding!!.homeFragmentList.setItemViewCacheSize(16)
         binding!!.homeFragmentList.adapter = adapter
+        adapter.attachDrag(binding!!.homeFragmentList)
         viewModel.apps.observe(viewLifecycleOwner) { list ->
             homeApps = list.orEmpty()
-            adapter.setItems(DockLogic.slots(homeApps))
+            adapter.setItems(HomeGridLogic.apps(homeApps))
             if (!drawerOpen) {
                 binding!!.homeFragmentEmpty.isVisible = homeApps.isEmpty()
             }
@@ -166,12 +179,12 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                         closeDrawer()
                     },
                     onPin = { app ->
-                        if (DockLogic.canAdd(homeApps.size)) {
+                        if (HomeGridLogic.canAdd(homeApps.size)) {
                             viewModel.pin(app)
                         } else {
                             android.widget.Toast.makeText(
                                 requireContext(),
-                                R.string.home_dock_full,
+                                R.string.home_grid_full,
                                 android.widget.Toast.LENGTH_SHORT
                             ).show()
                         }
@@ -187,6 +200,8 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                             )
                         }
                     },
+                    onShortcuts = ::loadShortcuts,
+                    onLaunchShortcut = ::launchShortcut,
                     onClose = { closeDrawer() }
                 )
             }
@@ -472,13 +487,16 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                     RingMenuOverlay(
                         state = current,
                         onUpdate = { dockRing = it },
-                        onAction = { action ->
+                        onAction = { option ->
                             val app = current.item.app
                             dockRing = null
-                            when (action) {
-                                RingAction.APP_INFO -> openAppInfo(app)
-                                RingAction.DOCK -> viewModel.unpin(app.packageName, app.userSerial)
-                                RingAction.UNINSTALL -> uninstall(app)
+                            when (option) {
+                                is RingOption.Builtin -> when (option.action) {
+                                    RingAction.APP_INFO -> openAppInfo(app)
+                                    RingAction.HOME -> viewModel.unpin(app.packageName, app.userSerial)
+                                    RingAction.UNINSTALL -> uninstall(app)
+                                }
+                                is RingOption.Shortcut -> launchShortcut(option.shortcut)
                             }
                         },
                         onDismiss = { dockRing = null }
@@ -490,7 +508,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         // Drag-select from the long-pressed dock icon: forward the rest of the gesture.
         binding!!.homeFragmentList.addOnItemTouchListener(object : RecyclerView.SimpleOnItemTouchListener() {
             override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
-                return dockRing != null && e.actionMasked != MotionEvent.ACTION_DOWN
+                return dockRing != null && !adapter.didDrag() && e.actionMasked != MotionEvent.ACTION_DOWN
             }
 
             override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {
@@ -525,8 +543,64 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
             item = DrawerAppItem(App.from(app), pinned = true, icon = bmp),
             center = center,
             pointer = null,
-            hit = RingHit.Center
+            hit = RingHit.Center,
+            shortcuts = loadShortcuts(App.from(app))
         )
+    }
+
+    private fun releaseHomeLongPress() {
+        val pending = pendingHomeRing ?: return
+        if (adapter.didDrag()) {
+            pendingHomeRing = null
+            return
+        }
+        pendingHomeRing = null
+        if (dockRing == null && !drawerOpen) showDockRing(pending.first, pending.second)
+    }
+
+    private fun loadShortcuts(app: App): List<AppShortcut> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1) return emptyList()
+        return try {
+            val launcher = requireContext().getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
+            val manager = requireContext().getSystemService(Context.USER_SERVICE) as UserManager
+            val user = try {
+                manager.getUserForSerialNumber(app.userSerial)
+            } catch (_: Exception) {
+                null
+            } ?: Process.myUserHandle()
+            val query = ShortcutQuery().setPackage(app.packageName).setQueryFlags(
+                ShortcutQuery.FLAG_MATCH_DYNAMIC or
+                    ShortcutQuery.FLAG_MATCH_MANIFEST or
+                    ShortcutQuery.FLAG_MATCH_PINNED
+            )
+            AppShortcutLogic.visible(
+                launcher.getShortcuts(query, user).orEmpty().map { info ->
+                    AppShortcut(
+                        id = info.id,
+                        packageName = info.`package`,
+                        userSerial = app.userSerial,
+                        label = (info.shortLabel ?: info.longLabel)?.toString().orEmpty()
+                    )
+                }
+            )
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun launchShortcut(shortcut: AppShortcut) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1) return
+        try {
+            val launcher = requireContext().getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
+            val manager = requireContext().getSystemService(Context.USER_SERVICE) as UserManager
+            val user = try {
+                manager.getUserForSerialNumber(shortcut.userSerial)
+            } catch (_: Exception) {
+                null
+            } ?: Process.myUserHandle()
+            launcher.startShortcut(shortcut.packageName, shortcut.id, null, null, user)
+        } catch (_: Exception) {
+        }
     }
 
     private fun uninstall(app: App) {
@@ -666,6 +740,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     private fun openDrawer() {
         cancelCloseDrawer()
         val overlay = binding?.homeFragmentDrawer ?: return
+        overlay.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         overlay.visibility = DrawerWindowLogic.overlayVisibility(true)
         setHomeChromeVisible(false)
         drawerOpen = true
