@@ -1,0 +1,23 @@
+Magenta Arbitrary Image Stylization (TensorFlow Lite)
+=====================================================
+
+This directory bundles the official Magenta "arbitrary-image-stylization-v1-256"
+int8 TensorFlow Lite models:
+
+  style_predict_int8.tflite
+  style_transform_int8.tflite
+
+Source:
+  https://tfhub.dev/google/lite-model/magenta/arbitrary-image-stylization-v1-256/int8/prediction/1
+  https://tfhub.dev/google/lite-model/magenta/arbitrary-image-stylization-v1-256/int8/transfer/1
+  https://github.com/magenta/magenta
+
+License: Apache License 2.0
+Copyright 2016 The Magenta Team / The Magenta Authors
+Copyright The TensorFlow Authors
+
+A copy of the Apache 2.0 license is in THIRD_PARTY_NOTICES.md at the
+repository root.
+
+The six bundled style images (styles/*.png) were generated for Forge and are
+original assets, not third-party artwork.

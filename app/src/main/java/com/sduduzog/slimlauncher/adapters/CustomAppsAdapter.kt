@@ -10,11 +10,15 @@ import android.widget.TextView
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.sduduzog.slimlauncher.R
+import com.sduduzog.slimlauncher.icons.AppIconResolver
 import com.sduduzog.slimlauncher.models.HomeApp
 import com.sduduzog.slimlauncher.utils.OnItemActionListener
 import com.sduduzog.slimlauncher.utils.OnShitDoneToAppsListener
 
-class CustomAppsAdapter(private val listener: OnShitDoneToAppsListener) : RecyclerView.Adapter<CustomAppsAdapter.ViewHolder>(), OnItemActionListener {
+class CustomAppsAdapter(
+    private val listener: OnShitDoneToAppsListener,
+    private val iconResolver: AppIconResolver
+) : RecyclerView.Adapter<CustomAppsAdapter.ViewHolder>(), OnItemActionListener {
 
     private var apps: MutableList<HomeApp> = mutableListOf()
     private lateinit var touchHelper: ItemTouchHelper
@@ -30,6 +34,7 @@ class CustomAppsAdapter(private val listener: OnShitDoneToAppsListener) : Recycl
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = apps[position]
         holder.appName.text = item.appNickname ?: item.appName
+        iconResolver.bind(holder.appIcon, item.packageName, item.activityName, item.userSerial)
         holder.dragHandle.setOnTouchListener { _, motionEvent ->
             if (motionEvent.actionMasked == MotionEvent.ACTION_DOWN) {
                 touchHelper.startDrag(holder)
@@ -84,6 +89,7 @@ class CustomAppsAdapter(private val listener: OnShitDoneToAppsListener) : Recycl
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val dragHandle: TextView = itemView.findViewById(R.id.ca_list_item_drag_handle)
         val appName: TextView = itemView.findViewById(R.id.ca_list_item_app_name)
+        val appIcon: ImageView = itemView.findViewById(R.id.ca_list_item_app_icon)
         val menuIcon: ImageView = itemView.findViewById(R.id.ca_list_item_more_icon)
 
         override fun toString(): String {

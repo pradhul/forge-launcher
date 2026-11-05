@@ -1,0 +1,55 @@
+package com.sduduzog.slimlauncher.ui.home
+
+import com.google.common.truth.Truth.assertThat
+import org.junit.Test
+
+class DrawerGestureLogicTest {
+    private val d = 2.75f
+
+    @Test
+    fun singleShortSwipeDownAtTopClosesDuringMove() {
+        assertThat(DrawerGestureLogic.shouldCloseOnMove(40f * d, 5f, startedAtTop = true, density = d)).isTrue()
+        assertThat(DrawerGestureLogic.shouldCloseOnMove(20f * d, 0f, startedAtTop = true, density = d)).isFalse()
+    }
+
+    @Test
+    fun swipeDownWhenScrolledDoesNotClose() {
+        assertThat(DrawerGestureLogic.shouldCloseOnMove(200f * d, 0f, startedAtTop = false, density = d)).isFalse()
+        assertThat(DrawerGestureLogic.shouldCloseOnRelease(200f * d, 0f, 5000f, startedAtTop = false, density = d)).isFalse()
+    }
+
+    @Test
+    fun quickFlickDownClosesOnRelease() {
+        assertThat(DrawerGestureLogic.shouldCloseOnRelease(15f * d, 2f, 1500f * d, startedAtTop = true, density = d)).isTrue()
+        assertThat(DrawerGestureLogic.shouldCloseOnRelease(15f * d, 2f, 100f * d, startedAtTop = true, density = d)).isFalse()
+    }
+
+    @Test
+    fun horizontalSwipeIgnored() {
+        assertThat(DrawerGestureLogic.shouldCloseOnMove(60f * d, 80f * d, true, d)).isFalse()
+        assertThat(DrawerGestureLogic.shouldOpenOnMove(-60f * d, 80f * d, d)).isFalse()
+    }
+
+    @Test
+    fun swipeUpOnHomeOpensDuringMoveOrFlick() {
+        assertThat(DrawerGestureLogic.shouldOpenOnMove(-20f * d, 0f, d)).isFalse()
+        assertThat(DrawerGestureLogic.shouldOpenOnMove(-40f * d, 0f, d)).isFalse()
+        assertThat(DrawerGestureLogic.shouldOpenOnMove(-52f * d, 0f, d)).isTrue()
+        assertThat(DrawerGestureLogic.shouldOpenOnMove(40f * d, 0f, d)).isFalse()
+        assertThat(DrawerGestureLogic.shouldOpenOnRelease(-12f * d, 0f, -1200f * d, d)).isFalse()
+        assertThat(DrawerGestureLogic.shouldOpenOnRelease(-28f * d, 0f, -800f * d, d)).isTrue()
+        assertThat(DrawerGestureLogic.shouldOpenOnRelease(-40f * d, 0f, -100f * d, d)).isFalse()
+        assertThat(DrawerGestureLogic.shouldOpenOnRelease(-53f * d, 0f, -100f * d, d)).isTrue()
+    }
+
+    @Test
+    fun homeGridKeepsAllRowsIncludingTheBottom() {
+        val favs = listOf("a", "b", "c", "d", "e")
+        assertThat(HomeGridLogic.apps(favs)).containsExactly("a", "b", "c", "d", "e").inOrder()
+        assertThat(HomeGridLogic.apps(listOf("a"))).containsExactly("a")
+        assertThat(HomeGridLogic.canAdd(3)).isTrue()
+        assertThat(HomeGridLogic.canAdd(4)).isTrue()
+        assertThat(HomeGridLogic.canAdd(HomeGridLogic.MAX)).isFalse()
+        assertThat(HomeGridLogic.COLUMNS).isEqualTo(4)
+    }
+}

@@ -10,6 +10,10 @@ class Repository(private val baseDao: BaseDao) {
     val apps: LiveData<List<HomeApp>>
         get() = _apps
 
+    fun getAppsSync(): List<HomeApp> = baseDao.getAppsSync()
+
+    fun countApps(): Int = baseDao.countApps()
+
     fun add(app: HomeApp) {
         baseDao.add(app)
     }

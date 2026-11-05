@@ -1,12 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/home_fragment_list_item_app_name"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="4dp"
-    android:layout_marginBottom="4dp"
-    android:padding="12dp"
-    android:textAppearance="@style/TextAppearance.AppCompat"
-    android:textSize="@dimen/_24ssp">
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    android:paddingStart="4dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="4dp"
+    android:paddingBottom="8dp">
 
-</TextView>
+    <ImageView
+        android:id="@+id/home_fragment_list_item_app_icon"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:contentDescription="@null"
+        android:importantForAccessibility="no"
+        android:scaleType="fitCenter"
+        android:tint="@null"
+        app:tint="@null"
+        tools:ignore="ContentDescription" />
+
+    <TextView
+        android:id="@+id/home_fragment_list_item_app_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:gravity="center"
+        android:maxLines="1"
+        android:paddingTop="6dp"
+        android:textAppearance="@style/TextAppearance.AppCompat"
+        android:textSize="12sp" />
+</LinearLayout>

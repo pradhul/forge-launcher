@@ -6,7 +6,11 @@
         <item name="android:colorForeground">@color/lightAccentColor</item>
         <item name="colorPrimary">@color/colorWhite</item>
         <item name="colorPrimaryDark">@color/colorWhiteDark</item>
-        <item name="android:colorBackground">@color/colorWhite</item>
+        <item name="android:colorBackground">@android:color/transparent</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowShowWallpaper">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:fontFamily">@font/ubuntu</item>
     </style>
 
@@ -14,7 +18,11 @@
         <item name="colorAccent">@color/darkAccentColor</item>
         <item name="colorPrimary">@color/primaryDarkColor</item>
         <item name="colorPrimaryDark">@color/primaryDarkColor</item>
-        <item name="android:colorBackground">@color/primaryDarkColor</item>
+        <item name="android:colorBackground">@android:color/transparent</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowShowWallpaper">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:colorForeground">@color/darkAccentColor</item>
         <item name="android:fontFamily">@font/ubuntu</item>
     </style>
