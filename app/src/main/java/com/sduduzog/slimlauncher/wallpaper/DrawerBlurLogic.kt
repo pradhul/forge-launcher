@@ -112,7 +112,7 @@ object DrawerBlurLogic {
 
 object DrawerMotionLogic {
     const val ANIM_MS = DrawerBlurLogic.ANIM_MS
-    const val OPEN_DISTANCE = 36f
+    const val OPEN_DISTANCE = 64f
     const val CLOSE_DISTANCE = 36f
 
     fun shouldOpenFromHomeSwipe(upDistance: Float, velocityX: Float, velocityY: Float): Boolean {

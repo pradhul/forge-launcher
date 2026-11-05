@@ -119,4 +119,29 @@ class HomeGridLogicTest {
             .containsExactly(0, 1, 2, 3).inOrder()
         assertThat(HomeGridLogic.reorder(slots, 1, 1)).isEqualTo(slots)
     }
+
+    @Test
+    fun viewportRowsFitTheAvailableHeight() {
+        assertThat(HomeGridLogic.viewportRows(0, 96)).isEqualTo(0)
+        assertThat(HomeGridLogic.viewportRows(480, 96)).isEqualTo(5)
+        assertThat(HomeGridLogic.viewportRows(50, 96)).isEqualTo(1)
+        assertThat(HomeGridLogic.viewportRows(9600, 96)).isEqualTo(HomeGridLogic.MAX / HomeGridLogic.COLUMNS)
+    }
+
+    @Test
+    fun fullHeightGridKeepsFirstFourOnTheBottomRow() {
+        val six = listOf("a", "b", "c", "d", "e", "f").mapIndexed { i, n -> app(n, i) }
+        val slots = HomeGridLogic.visualSlots(six, rows = 5)
+        assertThat(slots).hasSize(20)
+        assertThat(names(slots).takeLast(4)).containsExactly("a", "b", "c", "d").inOrder()
+        assertThat(names(slots).takeLast(8))
+            .containsExactly("e", "f", "_", "_", "a", "b", "c", "d").inOrder()
+        assertThat(HomeGridLogic.logicalFromVisual(slots).map { it.appName })
+            .containsExactly("a", "b", "c", "d", "e", "f").inOrder()
+        val two = HomeGridLogic.visualSlots(listOf(app("a", 0), app("b", 1)), rows = 4)
+        assertThat(two).hasSize(16)
+        assertThat(names(two).takeLast(4)).containsExactly("a", "b", "_", "_").inOrder()
+        assertThat(HomeGridLogic.displaySlots(emptyList(), rows = 5)).hasSize(20)
+        assertThat(HomeGridLogic.displaySlots(emptyList())).isEmpty()
+    }
 }

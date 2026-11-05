@@ -3,6 +3,7 @@ package com.sduduzog.slimlauncher.adapters
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
@@ -13,6 +14,7 @@ import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.icons.AppIconResolver
 import com.sduduzog.slimlauncher.models.HomeApp
 import com.sduduzog.slimlauncher.ui.home.HomeGridLogic
+import com.sduduzog.slimlauncher.ui.home.HomeIconGestureLogic
 import com.sduduzog.slimlauncher.ui.home.HomeSlot
 import com.sduduzog.slimlauncher.utils.OnItemActionListener
 import com.sduduzog.slimlauncher.utils.OnLaunchAppListener
@@ -21,14 +23,18 @@ class HomeAdapter(
     private val listener: OnLaunchAppListener,
     private val iconResolver: AppIconResolver,
     private val onLongPressReady: (HomeApp, View) -> Unit = { _, _ -> },
-    private val onLongPressUp: () -> Unit = {},
+    private val onDragStarted: () -> Unit = {},
     private val onReorder: (List<HomeApp>) -> Unit = {}
 ) : RecyclerView.Adapter<HomeAdapter.ViewHolder>(), OnItemActionListener {
 
     private val slots = mutableListOf<HomeSlot>()
+    private var homeApps: List<HomeApp> = emptyList()
+    private var viewportRows = 0
     private var labelColor: Int? = null
     private var dragging = false
     private var draggedItem = false
+    private var dragHelper: ItemTouchHelper? = null
+    private var dragSlop = 16f
 
     init {
         setHasStableIds(true)
@@ -37,6 +43,7 @@ class HomeAdapter(
 
     fun attachDrag(recyclerView: RecyclerView) {
         (recyclerView.itemAnimator as? SimpleItemAnimator)?.supportsChangeAnimations = false
+        dragSlop = ViewConfiguration.get(recyclerView.context).scaledTouchSlop * 2f
         val callback = object : ItemTouchHelper.Callback() {
             override fun getMovementFlags(
                 recyclerView: RecyclerView,
@@ -59,7 +66,7 @@ class HomeAdapter(
 
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) = Unit
 
-            override fun isLongPressDragEnabled() = true
+            override fun isLongPressDragEnabled() = false
 
             override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
                 super.onSelectedChanged(viewHolder, actionState)
@@ -75,13 +82,10 @@ class HomeAdapter(
                 onViewIdle()
             }
         }
-        ItemTouchHelper(callback).attachToRecyclerView(recyclerView)
+        dragHelper = ItemTouchHelper(callback).also { it.attachToRecyclerView(recyclerView) }
     }
 
     fun isDragging(): Boolean = dragging
-
-    /** True once the icon has actually moved to another cell. */
-    fun didDrag(): Boolean = draggedItem
 
     override fun getItemViewType(position: Int): Int =
         if (slots[position] is HomeSlot.Empty) TYPE_EMPTY else TYPE_APP
@@ -121,6 +125,7 @@ class HomeAdapter(
             return
         }
         val item = (slot as HomeSlot.App).app
+        holder.longPressed = false
         holder.itemView.visibility = View.VISIBLE
         holder.itemView.isClickable = true
         holder.mLabelView.text = item.appNickname ?: item.appName
@@ -130,20 +135,39 @@ class HomeAdapter(
             if (!dragging) listener.onLaunch(item, it)
         }
         holder.itemView.setOnLongClickListener {
-            if (!dragging) onLongPressReady(item, holder.mIconView)
+            if (!dragging) {
+                holder.longPressed = true
+                onLongPressReady(item, holder.mIconView)
+            }
             true
         }
         holder.itemView.setOnTouchListener { _, event ->
-            if (event.actionMasked == MotionEvent.ACTION_UP ||
-                event.actionMasked == MotionEvent.ACTION_CANCEL
-            ) {
-                onLongPressUp()
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    holder.downX = event.rawX
+                    holder.downY = event.rawY
+                    holder.longPressed = false
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (HomeIconGestureLogic.shouldStartDrag(
+                            holder.longPressed,
+                            dragging,
+                            event.rawX - holder.downX,
+                            event.rawY - holder.downY,
+                            dragSlop
+                        )
+                    ) {
+                        onDragStarted()
+                        dragHelper?.startDrag(holder)
+                    }
+                }
             }
             false
         }
     }
 
     private fun bindEmpty(holder: ViewHolder) {
+        holder.longPressed = false
         holder.itemView.visibility = View.INVISIBLE
         holder.itemView.isClickable = false
         holder.itemView.setOnClickListener(null)
@@ -164,13 +188,22 @@ class HomeAdapter(
         is HomeSlot.Empty -> EMPTY_ID_BASE + slot.key
     }
 
+    fun setViewportRows(rows: Int) {
+        if (viewportRows == rows) return
+        viewportRows = rows
+        if (!dragging) applySlots()
+    }
+
     fun setItems(list: List<HomeApp>) {
         if (dragging) return
-        val next = HomeGridLogic.displaySlots(list)
+        homeApps = list
+        applySlots()
+    }
+
+    private fun applySlots() {
+        val next = HomeGridLogic.displaySlots(homeApps, viewportRows)
         slots.clear()
         slots.addAll(next)
-        // wrap_content grid must always remeasure; DiffUtil inserts into a
-        // 0-height RecyclerView with hasFixedSize left the home screen blank.
         notifyDataSetChanged()
     }
 
@@ -212,6 +245,9 @@ class HomeAdapter(
     inner class ViewHolder(mView: View) : RecyclerView.ViewHolder(mView) {
         val mLabelView: TextView = mView.findViewById(R.id.home_fragment_list_item_app_name)
         val mIconView: ImageView = mView.findViewById(R.id.home_fragment_list_item_app_icon)
+        var downX = 0f
+        var downY = 0f
+        var longPressed = false
     }
 
     companion object {

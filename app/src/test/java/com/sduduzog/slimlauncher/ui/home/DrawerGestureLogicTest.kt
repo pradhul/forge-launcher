@@ -32,9 +32,14 @@ class DrawerGestureLogicTest {
 
     @Test
     fun swipeUpOnHomeOpensDuringMoveOrFlick() {
-        assertThat(DrawerGestureLogic.shouldOpenOnMove(-40f * d, 0f, d)).isTrue()
+        assertThat(DrawerGestureLogic.shouldOpenOnMove(-20f * d, 0f, d)).isFalse()
+        assertThat(DrawerGestureLogic.shouldOpenOnMove(-40f * d, 0f, d)).isFalse()
+        assertThat(DrawerGestureLogic.shouldOpenOnMove(-52f * d, 0f, d)).isTrue()
         assertThat(DrawerGestureLogic.shouldOpenOnMove(40f * d, 0f, d)).isFalse()
-        assertThat(DrawerGestureLogic.shouldOpenOnRelease(-12f * d, 0f, -1200f * d, d)).isTrue()
+        assertThat(DrawerGestureLogic.shouldOpenOnRelease(-12f * d, 0f, -1200f * d, d)).isFalse()
+        assertThat(DrawerGestureLogic.shouldOpenOnRelease(-28f * d, 0f, -800f * d, d)).isTrue()
+        assertThat(DrawerGestureLogic.shouldOpenOnRelease(-40f * d, 0f, -100f * d, d)).isFalse()
+        assertThat(DrawerGestureLogic.shouldOpenOnRelease(-53f * d, 0f, -100f * d, d)).isTrue()
     }
 
     @Test

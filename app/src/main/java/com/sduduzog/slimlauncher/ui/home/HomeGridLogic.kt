@@ -14,8 +14,14 @@ sealed class HomeSlot {
  */
 object HomeGridLogic {
     const val COLUMNS = AppDrawerGrid.PHONE_COLUMNS
-    const val MAX = 24
+    const val MAX = 40
     const val DEFAULT_COUNT = 8
+    const val ROW_DP = 96
+
+    fun viewportRows(heightPx: Int, rowHeightPx: Int, columns: Int = COLUMNS): Int {
+        if (heightPx <= 0 || rowHeightPx <= 0) return 0
+        return (heightPx / rowHeightPx).coerceAtLeast(1).coerceAtMost(MAX / columns)
+    }
 
     fun canAdd(currentCount: Int): Boolean = currentCount < MAX
 
@@ -51,21 +57,39 @@ object HomeGridLogic {
     }
 
     /** Filled cells the home RecyclerView should show. Empty home → empty list. */
-    fun displaySlots(home: List<HomeApp>): List<HomeSlot> = visualSlots(apps(home))
+    fun displaySlots(home: List<HomeApp>, rows: Int = 0): List<HomeSlot> =
+        visualSlots(apps(home), rows = rows)
 
     /**
      * Cells for a bottom-anchored 4-column grid. The first [COLUMNS] apps
-     * occupy the visual bottom row; anything else sits in rows above, with
-     * empty pads so the bottom row stays a full home row.
+     * occupy the visual bottom row; extra apps sit in rows above. When
+     * [rows] is set, leading empty cells fill the rest of the viewport.
      */
-    fun visualSlots(apps: List<HomeApp>, columns: Int = COLUMNS): List<HomeSlot> {
+    fun visualSlots(apps: List<HomeApp>, columns: Int = COLUMNS, rows: Int = 0): List<HomeSlot> {
         val list = apps.take(MAX)
-        if (list.size <= columns) return list.map { HomeSlot.App(it) }
-        val bottom = list.take(columns).map { HomeSlot.App(it) }
-        val above = list.drop(columns)
-        val pad = (columns - above.size % columns) % columns
-        val pads = List(pad) { HomeSlot.Empty(it) }
-        return above.map { HomeSlot.App(it) } + pads + bottom
+        val compact = if (list.size <= columns) {
+            list.map { HomeSlot.App(it) }
+        } else {
+            val bottom = list.take(columns).map { HomeSlot.App(it) }
+            val above = list.drop(columns)
+            val pad = (columns - above.size % columns) % columns
+            above.map { HomeSlot.App(it) } + List(pad) { HomeSlot.Empty(0) } + bottom
+        }
+        if (rows <= 0) {
+            return compact.mapIndexed { i, slot ->
+                if (slot is HomeSlot.Empty) HomeSlot.Empty(i) else slot
+            }
+        }
+        val bottom = if (list.size <= columns) {
+            list.map { HomeSlot.App(it) } + List(columns - list.size) { HomeSlot.Empty(0) }
+        } else {
+            compact
+        }
+        val cells = rows * columns
+        val lead = (cells - bottom.size).coerceAtLeast(0)
+        return (List(lead) { HomeSlot.Empty(0) } + bottom).mapIndexed { i, slot ->
+            if (slot is HomeSlot.Empty) HomeSlot.Empty(i) else slot
+        }
     }
 
     /**

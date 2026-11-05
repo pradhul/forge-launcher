@@ -80,7 +80,6 @@ import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
 import javax.inject.Inject
-import kotlin.math.abs
 
 @AndroidEntryPoint
 class HomeFragment : BaseFragment(), OnLaunchAppListener {
@@ -110,7 +109,6 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     private var widgetsPage: WidgetsPage? = null
     private var widgetsOpen = false
     private var homePopup by mutableStateOf<AppPopupState?>(null)
-    private var pendingHomePopup: Pair<HomeApp, View>? = null
     private val pickWidget = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         widgetsPage?.onPickResult(it.resultCode == android.app.Activity.RESULT_OK, it.data)
     }
@@ -131,18 +129,26 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         adapter = HomeAdapter(
             this,
             iconResolver,
-            onLongPressReady = { app, view -> pendingHomePopup = app to view },
-            onLongPressUp = { releaseHomeLongPress() },
+            onLongPressReady = { app, view -> showHomePopup(app, view) },
+            onDragStarted = { homePopup = null },
             onReorder = { viewModel.reorder(it) }
         )
-        binding!!.homeFragmentList.setHasFixedSize(false)
+        binding!!.homeFragmentList.setHasFixedSize(true)
         binding!!.homeFragmentList.setItemViewCacheSize(16)
         binding!!.homeFragmentList.adapter = adapter
         adapter.attachDrag(binding!!.homeFragmentList)
+        val density = resources.displayMetrics.density
+        val rowPx = (HomeGridLogic.ROW_DP * density).toInt()
+        val approxGrid = (resources.displayMetrics.heightPixels - (220 * density).toInt())
+            .coerceAtLeast(rowPx)
+        adapter.setViewportRows(HomeGridLogic.viewportRows(approxGrid, rowPx))
+        binding!!.homeFragmentList.addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ ->
+            val measuredRow = (HomeGridLogic.ROW_DP * v.resources.displayMetrics.density).toInt()
+            adapter.setViewportRows(HomeGridLogic.viewportRows(v.height, measuredRow))
+        }
         viewModel.apps.observe(viewLifecycleOwner) { list ->
             homeApps = list.orEmpty()
             adapter.setItems(homeApps)
-            binding!!.homeFragmentList.requestLayout()
             if (!drawerOpen) {
                 binding!!.homeFragmentEmpty.isVisible = homeApps.isEmpty()
             }
@@ -240,7 +246,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
             }
             MotionEvent.ACTION_MOVE -> {
                 swipeVelocity?.addMovement(event)
-                if (swipeCommitted || drawerOpen) return
+                if (swipeCommitted || drawerOpen || adapter.isDragging() || homePopup != null) return
                 val dx = event.rawX - swipeDownX
                 val dy = event.rawY - swipeDownY
                 if (PageSwipeLogic.opensWidgets(dx, dy, density)) {
@@ -258,7 +264,8 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
                 val tracker = swipeVelocity
                 tracker?.addMovement(event)
                 tracker?.computeCurrentVelocity(1000)
-                if (!swipeCommitted && !drawerOpen && tracker != null &&
+                if (!swipeCommitted && !drawerOpen && homePopup == null &&
+                    !adapter.isDragging() && tracker != null &&
                     DrawerGestureLogic.shouldOpenOnRelease(
                         event.rawY - swipeDownY,
                         event.rawX - swipeDownX,
@@ -526,16 +533,6 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
             shortcuts = loadShortcuts(model),
             anchor = center
         )
-    }
-
-    private fun releaseHomeLongPress() {
-        val pending = pendingHomePopup ?: return
-        if (adapter.didDrag()) {
-            pendingHomePopup = null
-            return
-        }
-        pendingHomePopup = null
-        if (homePopup == null && !drawerOpen) showHomePopup(pending.first, pending.second)
     }
 
     private fun loadShortcuts(app: App): List<AppShortcut> {
