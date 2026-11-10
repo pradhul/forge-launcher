@@ -64,6 +64,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.icons.PackTheme
 import com.sduduzog.slimlauncher.icons.ThemedIconPalette
+import com.sduduzog.slimlauncher.market.MarketThemeLogic
 import com.sduduzog.slimlauncher.ui.home.DrawerSearchStyle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -140,6 +141,7 @@ fun WidgetPickerScreen(
     backdrop: Bitmap?,
     appIcon: (String, Long) -> Bitmap?,
     onPick: (PickerProvider) -> Unit,
+    onPickBuiltin: (String) -> Unit,
     onClose: () -> Unit
 ) {
     BackHandler(onBack = onClose)
@@ -149,7 +151,12 @@ fun WidgetPickerScreen(
     }
     var query by rememberSaveable { mutableStateOf("") }
     val byKey = remember(providers) { providers.orEmpty().associateBy { it.widget.key } }
-    val sections = remember(providers) { WidgetPickerLogic.group(providers.orEmpty().map { it.widget }) }
+    val forge = remember(context.packageName) {
+        WidgetPickerLogic.forgeSection(context.packageName)
+    }
+    val sections = remember(providers, forge) {
+        WidgetPickerLogic.withPinned(forge, WidgetPickerLogic.group(providers.orEmpty().map { it.widget }))
+    }
     val shown = remember(sections, query) { WidgetPickerLogic.filter(sections, query) }
 
     val onBg = Color(theme.onBackground)
@@ -180,7 +187,9 @@ fun WidgetPickerScreen(
                         verticalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
                         items(shown, key = { it.key }) { section ->
-                            PickerSectionRow(section, byKey, cardColor, onBg, appIcon, onPick)
+                            PickerSectionRow(
+                                section, byKey, cardColor, onBg, theme, appIcon, onPick, onPickBuiltin
+                            )
                         }
                     }
                 }
@@ -197,8 +206,10 @@ private fun PickerSectionRow(
     byKey: Map<String, PickerProvider>,
     cardColor: Color,
     onBg: Color,
+    theme: PackTheme,
     appIcon: (String, Long) -> Bitmap?,
-    onPick: (PickerProvider) -> Unit
+    onPick: (PickerProvider) -> Unit,
+    onPickBuiltin: (String) -> Unit
 ) {
     Column(Modifier.fillMaxWidth()) {
         Row(
@@ -223,8 +234,12 @@ private fun PickerSectionRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(section.widgets, key = { it.key }) { w ->
-                val p = byKey[w.key] ?: return@items
-                WidgetCard(p, cardColor, onBg) { onPick(p) }
+                val p = byKey[w.key]
+                if (p != null) {
+                    WidgetCard(p, cardColor, onBg) { onPick(p) }
+                } else {
+                    BuiltinPickerCard(w, theme, cardColor, onBg) { onPickBuiltin(w.key) }
+                }
             }
         }
     }
@@ -249,6 +264,49 @@ private fun WidgetCard(p: PickerProvider, cardColor: Color, onBg: Color, onClick
         Spacer(Modifier.height(8.dp))
         Text(w.label, color = onBg, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(w.sizeLabel, color = onBg.copy(alpha = 0.7f), fontSize = 12.sp)
+    }
+}
+
+@Composable
+private fun BuiltinPickerCard(
+    widget: PickerWidget,
+    theme: PackTheme,
+    cardColor: Color,
+    onBg: Color,
+    onClick: () -> Unit
+) {
+    val colors = remember(theme) { MarketThemeLogic.colors(theme) }
+    val shape = RoundedCornerShape(24.dp)
+    Column(
+        Modifier
+            .width(WidgetPickerLogic.cardWidthDp(widget.cellsW).dp)
+            .clip(shape)
+            .background(cardColor, shape)
+            .clickable(onClick = onClick)
+            .padding(12.dp)
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(colors.card))
+                .padding(12.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(widget.label, color = Color(colors.muted), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "—",
+                color = Color(colors.text),
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(widget.label, color = onBg, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(widget.sizeLabel, color = onBg.copy(alpha = 0.7f), fontSize = 12.sp)
     }
 }
 

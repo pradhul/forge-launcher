@@ -28,6 +28,10 @@ import android.widget.ScrollView
 import android.widget.TextView
 import com.sduduzog.slimlauncher.icons.PackTheme
 import com.sduduzog.slimlauncher.icons.ThemedIconPalette
+import com.sduduzog.slimlauncher.market.MarketKinds
+import com.sduduzog.slimlauncher.market.MarketQuoteRepository
+import com.sduduzog.slimlauncher.market.MarketQuoteScheduler
+import com.sduduzog.slimlauncher.market.MarketThemeLogic
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -53,6 +57,10 @@ class WidgetsPage(
     private val host = AppWidgetHost(app, WidgetStore.HOST_ID)
     private val manager = AppWidgetManager.getInstance(app)
     private val store = WidgetStore(app)
+    private val quotes = MarketQuoteRepository.get(app)
+    private val quoteListener = MarketQuoteRepository.Listener { kind, quote ->
+        cards.values.forEach { it.bindQuote(kind, quote) }
+    }
     private var entries: List<WidgetEntry> = emptyList()
     private val cards = LinkedHashMap<Int, WidgetCard>()
     private var editingId: Int? = null
@@ -79,6 +87,7 @@ class WidgetsPage(
     private var backdropBitmap: Bitmap? = null
     private var picker: androidx.compose.ui.platform.ComposeView? = null
     val isPickerOpen: Boolean get() = picker != null
+    private var pageVisible = false
 
     init {
         container.removeAllViews()
@@ -105,11 +114,26 @@ class WidgetsPage(
             bottomMargin = dp(36)
         })
         styleChrome()
+        quotes.addListener(quoteListener)
     }
 
     fun start() { runCatching { host.startListening() } }
 
     fun stop() { runCatching { host.stopListening() } }
+
+    fun destroy() {
+        quotes.removeListener(quoteListener)
+        quotes.setLivePolling(false, emptySet())
+    }
+
+    fun setPageVisible(visible: Boolean) {
+        pageVisible = visible
+        val kinds = builtinKinds()
+        quotes.setLivePolling(visible, kinds)
+        if (visible && kinds.isNotEmpty()) {
+            quotes.refreshDue(kinds, force = false)
+        }
+    }
 
     fun applyTheme(theme: PackTheme, blurredWallpaper: Bitmap?) {
         this.theme = theme
@@ -135,12 +159,15 @@ class WidgetsPage(
         column.removeAllViews()
         cards.clear()
         for (entry in entries) {
-            val info = manager.getAppWidgetInfo(entry.id) ?: continue
+            val info = if (entry.kind == WidgetEntry.KIND_HOSTED) {
+                manager.getAppWidgetInfo(entry.id) ?: continue
+            } else null
             val card = WidgetCard(entry, info)
             cards[entry.id] = card
             column.addView(card, cardParams(entry.heightDp))
         }
         editingId = null
+        syncMarketWork()
     }
 
     fun exitEdit() {
@@ -163,6 +190,7 @@ class WidgetsPage(
                     backdrop = backdropBitmap,
                     appIcon = appIcon,
                     onPick = { pickProvider(it) },
+                    onPickBuiltin = { placeBuiltin(it) },
                     onClose = { closePicker() }
                 )
             }
@@ -231,6 +259,32 @@ class WidgetsPage(
         place(id)
     }
 
+    private fun placeBuiltin(kind: String) {
+        closePicker()
+        if (!MarketKinds.isBuiltin(kind)) return
+        val existing = entries.firstOrNull { it.kind == kind }
+        if (existing != null) {
+            quotes.refresh(kind, force = true)
+            val card = cards[existing.id] ?: return
+            scroll.post { scroll.smoothScrollTo(0, card.top) }
+            return
+        }
+        val entry = WidgetEntry(
+            WidgetLayoutLogic.nextSyntheticId(entries),
+            MarketKinds.COMPACT_HEIGHT_DP,
+            kind
+        )
+        entries = WidgetLayoutLogic.add(entries, entry)
+        store.save(entries)
+        val card = WidgetCard(entry, null)
+        cards[entry.id] = card
+        column.addView(card, cardParams(entry.heightDp))
+        scroll.post { scroll.smoothScrollTo(0, column.height) }
+        quotes.refresh(kind, force = true)
+        syncMarketWork()
+        if (pageVisible) quotes.setLivePolling(true, builtinKinds())
+    }
+
     private fun place(id: Int) {
         val info = manager.getAppWidgetInfo(id) ?: run { discard(id); return }
         val minDp = (info.minHeight / density).roundToInt()
@@ -262,11 +316,23 @@ class WidgetsPage(
     }
 
     private fun removeWidget(id: Int) {
+        val kind = entries.firstOrNull { it.id == id }?.kind
         entries = WidgetLayoutLogic.remove(entries, id)
         store.save(entries)
         cards.remove(id)?.let { column.removeView(it) }
-        runCatching { host.deleteAppWidgetId(id) }
+        if (kind == WidgetEntry.KIND_HOSTED) {
+            runCatching { host.deleteAppWidgetId(id) }
+        }
         exitEdit()
+        syncMarketWork()
+        quotes.setLivePolling(pageVisible, builtinKinds())
+    }
+
+    private fun builtinKinds(): Set<String> =
+        entries.map { it.kind }.filter { MarketKinds.isBuiltin(it) }.toSet()
+
+    private fun syncMarketWork() {
+        MarketQuoteScheduler.sync(app, builtinKinds().isNotEmpty())
     }
 
     private fun moveWidget(id: Int, delta: Int) {
@@ -306,8 +372,15 @@ class WidgetsPage(
     private fun dp(v: Int): Int = (v * density).roundToInt()
 
     @SuppressLint("ViewConstructor")
-    private inner class WidgetCard(var entry: WidgetEntry, info: AppWidgetProviderInfo) : FrameLayout(activity) {
-        private val hostView: AppWidgetHostView = host.createView(app, entry.id, info)
+    private inner class WidgetCard(var entry: WidgetEntry, info: AppWidgetProviderInfo?) : FrameLayout(activity) {
+        private val hostView: AppWidgetHostView? =
+            if (info != null) host.createView(app, entry.id, info) else null
+        private val content: View = hostView ?: MarketQuoteView(activity, entry.kind) {
+            quotes.refresh(entry.kind, force = true)
+        }.also { view ->
+            view.applyColors(MarketThemeLogic.colors(theme))
+            view.bind(quotes.quote(entry.kind))
+        }
         private val controls = LinearLayout(activity)
         private val topHandle = View(activity)
         private val bottomHandle = View(activity)
@@ -325,7 +398,7 @@ class WidgetsPage(
 
         init {
             clipToOutline = true
-            addView(hostView, LayoutParams(MATCH, MATCH))
+            addView(content, LayoutParams(MATCH, MATCH))
             controls.orientation = LinearLayout.HORIZONTAL
             listOf("\u2193" to { moveWidget(entry.id, 1) }, "\u2191" to { moveWidget(entry.id, -1) }, "\u00D7" to { removeWidget(entry.id) })
                 .forEach { (glyph, action) ->
@@ -366,6 +439,12 @@ class WidgetsPage(
             listOf(topHandle, bottomHandle).forEach {
                 it.background = GradientDrawable().apply { cornerRadius = dp(5).toFloat(); setColor(accent) }
             }
+            (content as? MarketQuoteView)?.applyColors(MarketThemeLogic.colors(theme))
+        }
+
+        fun bindQuote(kind: String, quote: com.sduduzog.slimlauncher.market.MarketQuote?) {
+            val view = content as? MarketQuoteView ?: return
+            if (view.kind == kind) view.bind(quote)
         }
 
         fun setEditing(on: Boolean) {
@@ -376,6 +455,7 @@ class WidgetsPage(
         }
 
         fun updateSizeOptions(heightDp: Int) {
+            if (hostView == null) return
             val widthDp = ((activity.resources.displayMetrics.widthPixels - dp(32)) / density).roundToInt()
             val opts = Bundle().apply {
                 putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widthDp)

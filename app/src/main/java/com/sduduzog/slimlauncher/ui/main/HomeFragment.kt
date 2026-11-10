@@ -356,13 +356,6 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         widgetsPage?.stop()
     }
 
-    override fun onDestroyView() {
-        cancelCloseDrawer()
-        DrawerIme.hide(binding?.homeFragmentDrawer)
-        super.onDestroyView()
-        _binding = null
-    }
-
     private fun setEventListeners() {
         binding!!.homeFragmentTime.setOnClickListener {
             try {
@@ -444,12 +437,22 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         }).also { it.reload() }
     }
 
+    override fun onDestroyView() {
+        widgetsPage?.destroy()
+        widgetsPage = null
+        cancelCloseDrawer()
+        DrawerIme.hide(binding?.homeFragmentDrawer)
+        super.onDestroyView()
+        _binding = null
+    }
+
     private fun openWidgets() {
         if (widgetsOpen || drawerOpen) return
         val page = widgetsPage ?: return
         val container = binding?.homeFragmentWidgets ?: return
         widgetsOpen = true
         page.applyTheme(themeController.active(), drawerViewModel.ui.value.backdrop)
+        page.setPageVisible(true)
         container.visibility = View.VISIBLE
         val w = container.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
         container.translationX = w.toFloat()
@@ -464,6 +467,7 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
     private fun closeWidgets() {
         if (!widgetsOpen) return
         widgetsOpen = false
+        widgetsPage?.setPageVisible(false)
         widgetsPage?.exitEdit()
         val container = binding?.homeFragmentWidgets ?: return
         container.animate().translationX(container.width.toFloat())
@@ -706,6 +710,9 @@ class HomeFragment : BaseFragment(), OnLaunchAppListener {
         binding?.homeFragmentOverflow?.imageTintList = ColorStateList.valueOf(theme.onBackground)
         adapter.setLabelColor(theme.onBackground)
         val accent = ColorStateList.valueOf(theme.accent)
+        if (widgetsOpen) {
+            widgetsPage?.applyTheme(theme, drawerViewModel.ui.value.backdrop)
+        }
     }
 
     private fun openIconPacks() {

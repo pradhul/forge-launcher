@@ -64,4 +64,19 @@ class WidgetPickerLogicTest {
         assertThat(WidgetPickerLogic.cardWidthDp(1)).isEqualTo(132)
         assertThat(WidgetPickerLogic.cardWidthDp(4)).isEqualTo(300)
     }
+
+    @Test fun forgeSectionStaysPinnedAtTopAndMatchesGoldQuery() {
+        val forge = WidgetPickerLogic.forgeSection("com.pradhul.forge")
+        assertThat(forge.widgets.map { it.label }).containsExactly("Gold · 24K", "NIFTY 50").inOrder()
+        assertThat(forge.widgets.map { it.sizeLabel }).containsExactly("2×1", "2×1")
+        val rest = WidgetPickerLogic.group(all)
+        val pinned = WidgetPickerLogic.withPinned(forge, rest)
+        assertThat(pinned.first().appLabel).isEqualTo("Forge")
+        assertThat(pinned.map { it.appLabel }).contains("Clock")
+        val gold = WidgetPickerLogic.filter(pinned, "gold")
+        assertThat(gold).hasSize(1)
+        assertThat(gold[0].widgets.map { it.label }).containsExactly("Gold · 24K")
+        val nifty = WidgetPickerLogic.filter(pinned, "nifty")
+        assertThat(nifty[0].widgets.map { it.label }).containsExactly("NIFTY 50")
+    }
 }

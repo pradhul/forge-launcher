@@ -1,5 +1,6 @@
 package com.sduduzog.slimlauncher.widgets
 
+import com.sduduzog.slimlauncher.market.MarketKinds
 import kotlin.math.ceil
 
 /** One installable widget provider, platform-free so it can be unit-tested. */
@@ -38,6 +39,26 @@ object WidgetPickerLogic {
                 )
             }
             .sortedWith(compareBy({ it.appLabel.lowercase() }, { it.profileSerial }))
+
+    /** Keep a launcher-owned section at the top of the picker. */
+    fun withPinned(pinned: PickerSection?, rest: List<PickerSection>): List<PickerSection> {
+        if (pinned == null || pinned.widgets.isEmpty()) return rest
+        return listOf(pinned) + rest.filterNot { it.key == pinned.key }
+    }
+
+    fun forgeSection(packageName: String, profileSerial: Long = 0L): PickerSection {
+        val widgets = listOf(
+            PickerWidget(
+                MarketKinds.GOLD, packageName, profileSerial,
+                MarketKinds.APP_LABEL, MarketKinds.LABEL_GOLD, 2, 1
+            ),
+            PickerWidget(
+                MarketKinds.NIFTY, packageName, profileSerial,
+                MarketKinds.APP_LABEL, MarketKinds.LABEL_NIFTY, 2, 1
+            )
+        )
+        return PickerSection(packageName, profileSerial, MarketKinds.APP_LABEL, widgets)
+    }
 
     /**
      * App-name match keeps the whole section; otherwise keep only the widgets

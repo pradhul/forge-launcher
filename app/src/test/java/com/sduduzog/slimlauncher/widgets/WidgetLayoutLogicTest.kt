@@ -41,6 +41,19 @@ class WidgetLayoutLogicTest {
     }
 
     @Test
+    fun builtinEntriesSurviveSerializeAndAreNotPrunedWithHostedWidgets() {
+        val gold = WidgetEntry(-1, 112, "forge.gold")
+        val hosted = WidgetEntry(9, 180)
+        val raw = WidgetLayoutLogic.serialize(listOf(gold, hosted))
+        assertThat(raw).contains("forge.gold")
+        assertThat(WidgetLayoutLogic.parse(raw)).containsExactly(gold, hosted).inOrder()
+        assertThat(WidgetLayoutLogic.parse("9:180")).containsExactly(hosted)
+        assertThat(WidgetLayoutLogic.prune(listOf(gold, hosted)) { false }).containsExactly(gold)
+        assertThat(WidgetLayoutLogic.nextSyntheticId(listOf(hosted))).isEqualTo(-1)
+        assertThat(WidgetLayoutLogic.nextSyntheticId(listOf(gold, hosted))).isEqualTo(-2)
+    }
+
+    @Test
     fun pageSwipeNeedsClearHorizontalMove() {
         val d = 2.75f
         assertThat(PageSwipeLogic.opensWidgets(-70f * d, 5f, d)).isTrue()

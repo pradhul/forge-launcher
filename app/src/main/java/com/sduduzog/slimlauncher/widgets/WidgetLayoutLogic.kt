@@ -2,8 +2,16 @@ package com.sduduzog.slimlauncher.widgets
 
 import kotlin.math.abs
 
-/** One placed widget: AppWidget id + card height in dp. */
-data class WidgetEntry(val id: Int, val heightDp: Int)
+/** One placed widget: AppWidget id (or synthetic id) + card height in dp. */
+data class WidgetEntry(
+    val id: Int,
+    val heightDp: Int,
+    val kind: String = KIND_HOSTED
+) {
+    companion object {
+        const val KIND_HOSTED = "hosted"
+    }
+}
 
 /** Pure list operations + persistence format for the widgets page. */
 object WidgetLayoutLogic {
@@ -36,9 +44,18 @@ object WidgetLayoutLogic {
         list.map { if (it.id == id) it.copy(heightDp = clampHeight(heightDp)) else it }
 
     /** Drops entries whose widget no longer exists (uninstalled provider). */
-    fun prune(list: List<WidgetEntry>, alive: (Int) -> Boolean): List<WidgetEntry> = list.filter { alive(it.id) }
+    fun prune(list: List<WidgetEntry>, alive: (Int) -> Boolean): List<WidgetEntry> =
+        list.filter { it.kind != WidgetEntry.KIND_HOSTED || alive(it.id) }
 
-    fun serialize(list: List<WidgetEntry>): String = list.joinToString(";") { "${it.id}:${it.heightDp}" }
+    fun nextSyntheticId(list: List<WidgetEntry>): Int {
+        val min = list.minOfOrNull { it.id } ?: 0
+        return min.coerceAtMost(0) - 1
+    }
+
+    fun serialize(list: List<WidgetEntry>): String = list.joinToString(";") {
+        if (it.kind == WidgetEntry.KIND_HOSTED) "${it.id}:${it.heightDp}"
+        else "${it.id}:${it.heightDp}:${it.kind}"
+    }
 
     fun parse(raw: String?): List<WidgetEntry> {
         if (raw.isNullOrBlank()) return emptyList()
@@ -46,7 +63,8 @@ object WidgetLayoutLogic {
             val bits = part.split(':')
             val id = bits.getOrNull(0)?.toIntOrNull() ?: return@mapNotNull null
             val h = bits.getOrNull(1)?.toIntOrNull() ?: DEFAULT_HEIGHT_DP
-            WidgetEntry(id, clampHeight(h))
+            val kind = bits.getOrNull(2)?.takeIf { it.isNotBlank() } ?: WidgetEntry.KIND_HOSTED
+            WidgetEntry(id, clampHeight(h), kind)
         }.distinctBy { it.id }
     }
 }
