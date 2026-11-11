@@ -31,6 +31,7 @@ import com.sduduzog.slimlauncher.icons.ThemedIconPalette
 import com.sduduzog.slimlauncher.market.MarketKinds
 import com.sduduzog.slimlauncher.market.MarketQuoteRepository
 import com.sduduzog.slimlauncher.market.MarketQuoteScheduler
+import com.sduduzog.slimlauncher.market.MarketQuoteUi
 import com.sduduzog.slimlauncher.market.MarketThemeLogic
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -58,8 +59,8 @@ class WidgetsPage(
     private val manager = AppWidgetManager.getInstance(app)
     private val store = WidgetStore(app)
     private val quotes = MarketQuoteRepository.get(app)
-    private val quoteListener = MarketQuoteRepository.Listener { kind, quote ->
-        cards.values.forEach { it.bindQuote(kind, quote) }
+    private val quoteListener = MarketQuoteRepository.Listener { kind, ui ->
+        cards.values.forEach { it.bindQuote(kind, ui) }
     }
     private var entries: List<WidgetEntry> = emptyList()
     private val cards = LinkedHashMap<Int, WidgetCard>()
@@ -155,6 +156,13 @@ class WidgetsPage(
 
     fun reload() {
         entries = WidgetLayoutLogic.prune(store.load()) { manager.getAppWidgetInfo(it) != null }
+            .map { entry ->
+                if (MarketKinds.isBuiltin(entry.kind) &&
+                    entry.heightDp == MarketKinds.LEGACY_COMPACT_HEIGHT_DP
+                ) {
+                    entry.copy(heightDp = MarketKinds.COMPACT_HEIGHT_DP)
+                } else entry
+            }
         store.save(entries)
         column.removeAllViews()
         cards.clear()
@@ -379,7 +387,7 @@ class WidgetsPage(
             quotes.refresh(entry.kind, force = true)
         }.also { view ->
             view.applyColors(MarketThemeLogic.colors(theme))
-            view.bind(quotes.quote(entry.kind))
+            view.bind(MarketQuoteUi(quotes.quote(entry.kind)))
         }
         private val controls = LinearLayout(activity)
         private val topHandle = View(activity)
@@ -442,9 +450,9 @@ class WidgetsPage(
             (content as? MarketQuoteView)?.applyColors(MarketThemeLogic.colors(theme))
         }
 
-        fun bindQuote(kind: String, quote: com.sduduzog.slimlauncher.market.MarketQuote?) {
+        fun bindQuote(kind: String, ui: MarketQuoteUi) {
             val view = content as? MarketQuoteView ?: return
-            if (view.kind == kind) view.bind(quote)
+            if (view.kind == kind) view.bind(ui)
         }
 
         fun setEditing(on: Boolean) {

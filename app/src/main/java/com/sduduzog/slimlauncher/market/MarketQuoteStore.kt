@@ -27,6 +27,7 @@ class MarketQuoteStore(context: Context) {
                 .put("price", quote.price)
                 .put("updatedAtMs", quote.updatedAtMs)
                 .put("source", quote.source)
+                .put("spot", quote.spot)
             if (quote.changePercent != null) obj.put("changePercent", quote.changePercent)
             else obj.put("changePercent", JSONObject.NULL)
             return obj.toString()
@@ -45,7 +46,8 @@ class MarketQuoteStore(context: Context) {
                     price = obj.getDouble("price"),
                     changePercent = pct,
                     updatedAtMs = obj.getLong("updatedAtMs"),
-                    source = obj.optString("source", "")
+                    source = obj.optString("source", ""),
+                    spot = obj.optBoolean("spot", false)
                 )
             } catch (_: Exception) {
                 null

@@ -7,13 +7,17 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.animation.LinearInterpolator
+import android.view.animation.RotateAnimation
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.icons.PackTheme
 import com.sduduzog.slimlauncher.market.MarketCardColors
 import com.sduduzog.slimlauncher.market.MarketKinds
-import com.sduduzog.slimlauncher.market.MarketQuote
 import com.sduduzog.slimlauncher.market.MarketQuoteLogic
+import com.sduduzog.slimlauncher.market.MarketQuoteUi
 import com.sduduzog.slimlauncher.market.MarketThemeLogic
 import kotlin.math.roundToInt
 
@@ -27,16 +31,18 @@ class MarketQuoteView(
     private val density = resources.displayMetrics.density
     private val badge = TextView(context)
     private val label = TextView(context)
+    private val refresh = ImageView(context)
     private val price = TextView(context)
     private val chip = TextView(context)
+    private val synced = TextView(context)
     private var colors: MarketCardColors = MarketThemeLogic.colors(PackTheme.STOCK)
-    private var quote: MarketQuote? = null
+    private var ui = MarketQuoteUi(null)
 
     init {
         orientation = VERTICAL
         gravity = Gravity.CENTER_VERTICAL
         val pad = dp(16)
-        setPadding(pad, dp(12), pad, dp(12))
+        setPadding(pad, dp(10), pad, dp(10))
         val header = LinearLayout(context).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -49,10 +55,17 @@ class MarketQuoteView(
         label.setTypeface(Typeface.DEFAULT_BOLD)
         label.text = MarketKinds.label(kind)
         header.addView(label, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        refresh.setImageResource(R.drawable.ic_refresh)
+        refresh.contentDescription = "Refresh"
+        refresh.isClickable = true
+        refresh.isFocusable = true
+        refresh.setPadding(dp(6), dp(6), dp(6), dp(6))
+        refresh.setOnClickListener { onTapRefresh() }
+        header.addView(refresh, LayoutParams(dp(32), dp(32)))
         addView(header, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        price.setTextSize(TypedValue.COMPLEX_UNIT_SP, 26f)
+        price.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
         price.setTypeface(Typeface.DEFAULT_BOLD)
-        price.setPadding(0, dp(4), 0, 0)
+        price.setPadding(0, dp(2), 0, 0)
         price.maxLines = 1
         addView(price, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         chip.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
@@ -60,21 +73,27 @@ class MarketQuoteView(
         chip.setPadding(dp(8), dp(3), dp(8), dp(3))
         addView(
             chip,
-            LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) }
+            LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) }
+        )
+        synced.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+        synced.maxLines = 1
+        addView(
+            synced,
+            LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(4) }
         )
         isClickable = true
         isFocusable = true
         setOnClickListener { onTapRefresh() }
-        bind(null)
+        bind(MarketQuoteUi(null))
     }
 
     fun applyColors(next: MarketCardColors) {
         colors = next
-        bind(quote)
+        bind(ui)
     }
 
-    fun bind(next: MarketQuote?) {
-        quote = next
+    fun bind(next: MarketQuoteUi) {
+        ui = next
         val palette = colors
         val gold = kind == MarketKinds.GOLD
         badge.text = if (gold) "\u20B9" else "N"
@@ -85,8 +104,11 @@ class MarketQuoteView(
         }
         label.setTextColor(palette.muted)
         price.setTextColor(palette.text)
-        price.text = next?.let { MarketQuoteLogic.formatPrice(kind, it.price) } ?: "—"
-        val pct = next?.changePercent
+        synced.setTextColor(palette.muted)
+        refresh.setColorFilter(palette.text)
+        val quote = next.quote
+        price.text = quote?.let { MarketQuoteLogic.formatPrice(kind, it.price) } ?: "—"
+        val pct = quote?.changePercent
         val dir = MarketQuoteLogic.changeDirection(pct)
         if (pct == null) {
             chip.visibility = GONE
@@ -99,6 +121,29 @@ class MarketQuoteView(
                 setColor(MarketThemeLogic.chipBackground(palette, dir))
             }
         }
+        val syncedText = quote?.let { MarketQuoteLogic.formatSynced(it.updatedAtMs) }.orEmpty()
+        val footer = MarketQuoteLogic.formatFooter(
+            synced = syncedText,
+            failed = next.failed && !next.refreshing,
+            spot = quote?.spot == true
+        )
+        synced.text = footer
+        synced.visibility = if (footer.isEmpty()) GONE else VISIBLE
+        refresh.isEnabled = !next.refreshing
+        if (next.refreshing) startSpin() else refresh.clearAnimation()
+    }
+
+    private fun startSpin() {
+        if (refresh.animation != null) return
+        val spin = RotateAnimation(
+            0f, 360f,
+            RotateAnimation.RELATIVE_TO_SELF, 0.5f,
+            RotateAnimation.RELATIVE_TO_SELF, 0.5f
+        )
+        spin.duration = 700
+        spin.repeatCount = RotateAnimation.INFINITE
+        spin.interpolator = LinearInterpolator()
+        refresh.startAnimation(spin)
     }
 
     private fun dp(v: Int): Int = (v * density).roundToInt()

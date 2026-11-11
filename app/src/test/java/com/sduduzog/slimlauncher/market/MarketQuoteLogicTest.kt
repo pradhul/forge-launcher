@@ -16,18 +16,43 @@ class MarketQuoteLogicTest {
     }
 
     @Test
-    fun goldParserUses24kPerGramTimesTenAndHasNoChangeChip() {
-        val json = """
-            {"currency":"INR","timestamp":"2026-11-10T17:12:03Z",
-             "price_gram_24k":"12133.75","price_gram_22k":"11122.61"}
+    fun goldRetailParserReads22kPerGramFromGoodreturns() {
+        val html = """
+            let currentMetalPrices = {
+              '24': parseMetalPrice('14268'),
+              '22': parseMetalPrice('13079'),
+              '18': parseMetalPrice('10701')
+            };
         """.trimIndent()
-        val quote = MarketQuoteLogic.parseGold24kPer10g(json, 1_000L)
+        val quote = MarketQuoteLogic.parseGoodreturns22k1g(html, 1_000L)
         assertThat(quote.kind).isEqualTo(MarketKinds.GOLD)
-        assertThat(quote.label).isEqualTo("Gold · 24K")
-        assertThat(quote.price).isWithin(0.01).of(121337.5)
-        assertThat(quote.changePercent).isNull()
-        assertThat(quote.source).isEqualTo(MarketKinds.SOURCE_GOLD)
-        assertThat(MarketQuoteLogic.changeDirection(quote.changePercent)).isEqualTo(0)
+        assertThat(quote.label).isEqualTo("Gold · 22K · 1g")
+        assertThat(quote.price).isWithin(0.01).of(13079.0)
+        assertThat(quote.spot).isFalse()
+        assertThat(quote.source).isEqualTo(MarketKinds.SOURCE_GOLD_RETAIL)
+    }
+
+    @Test
+    fun goldWidgetHtmlFallsBackWhenJsBlobMissing() {
+        val html = """
+            <span>22k Gold</span>
+            <p>&#8377; 13,079 /gm <span class="down">(-0.01%)</span></p>
+        """.trimIndent()
+        val quote = MarketQuoteLogic.parseGoodreturns22k1g(html, 2_000L)
+        assertThat(quote.price).isWithin(0.01).of(13079.0)
+        assertThat(quote.changePercent).isWithin(0.001).of(-0.01)
+    }
+
+    @Test
+    fun goldSpotFallbackIs22kPerGramAndMarkedSpot() {
+        val json = """
+            {"currency":"INR","price_gram_24k":"12184.96","price_gram_22k":"11169.55"}
+        """.trimIndent()
+        val quote = MarketQuoteLogic.parseGoldSpot22k1g(json, 3_000L)
+        assertThat(quote.price).isWithin(0.01).of(11169.55)
+        assertThat(quote.spot).isTrue()
+        assertThat(quote.source).isEqualTo(MarketKinds.SOURCE_GOLD_SPOT)
+        assertThat(quote.label).isEqualTo("Gold · 22K · 1g")
     }
 
     @Test
@@ -107,15 +132,42 @@ class MarketQuoteLogicTest {
         assertThat(MarketQuoteLogic.formatChange(0.41)).isEqualTo("▲ 0.41%")
         assertThat(MarketQuoteLogic.formatChange(-0.35)).isEqualTo("▼ 0.35%")
         assertThat(MarketQuoteLogic.changeDirection(0.0)).isEqualTo(0)
-        assertThat(MarketQuoteLogic.url(MarketKinds.GOLD)).contains("goldprice.dev")
+        assertThat(MarketQuoteLogic.url(MarketKinds.GOLD)).contains("goodreturns.in")
         assertThat(MarketQuoteLogic.url(MarketKinds.NIFTY)).contains("%5ENSEI")
+        assertThat(MarketQuoteLogic.formatInr(13079.4)).isEqualTo("₹13,079")
     }
 
     @Test
-    fun cacheRoundTripKeepsNullChange() {
-        val gold = MarketQuote(MarketKinds.GOLD, MarketKinds.LABEL_GOLD, 121338.0, null, 9L, "goldprice.dev")
-        val nifty = MarketQuote(MarketKinds.NIFTY, MarketKinds.LABEL_NIFTY, 25044.65, 0.233, 9L, "yahoo")
+    fun syncedTimeAndRefreshFooter() {
+        val zone = TimeZone.getTimeZone("GMT")
+        val cal = Calendar.getInstance(zone)
+        cal.set(2026, Calendar.NOVEMBER, 11, 8, 5, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        assertThat(MarketQuoteLogic.formatSynced(cal.timeInMillis, zone, java.util.Locale.US))
+            .isEqualTo("Synced 11 Nov, 8:05 AM")
+        assertThat(MarketQuoteLogic.formatSynced(0L)).isEmpty()
+        assertThat(MarketQuoteLogic.formatFooter("Synced 11 Nov, 8:05 AM", failed = false, spot = false))
+            .isEqualTo("Synced 11 Nov, 8:05 AM")
+        assertThat(MarketQuoteLogic.formatFooter("Synced 11 Nov, 8:05 AM", failed = true, spot = false))
+            .isEqualTo("Couldn't update · Synced 11 Nov, 8:05 AM")
+        assertThat(MarketQuoteLogic.formatFooter("Synced 11 Nov, 8:05 AM", failed = false, spot = true))
+            .isEqualTo("Synced 11 Nov, 8:05 AM · spot")
+        assertThat(MarketQuoteLogic.formatFooter("", failed = true, spot = false))
+            .isEqualTo("Couldn't update")
+    }
+
+    @Test
+    fun cacheRoundTripKeepsNullChangeAndSpotFlag() {
+        val gold = MarketQuote(
+            MarketKinds.GOLD, MarketKinds.LABEL_GOLD, 13079.0, null, 9L,
+            MarketKinds.SOURCE_GOLD_RETAIL, spot = false
+        )
+        val spot = gold.copy(source = MarketKinds.SOURCE_GOLD_SPOT, spot = true, price = 11169.55)
+        val nifty = MarketQuote(
+            MarketKinds.NIFTY, MarketKinds.LABEL_NIFTY, 25044.65, 0.233, 9L, MarketKinds.SOURCE_NIFTY
+        )
         assertThat(MarketQuoteStore.parse(MarketQuoteStore.serialize(gold))).isEqualTo(gold)
+        assertThat(MarketQuoteStore.parse(MarketQuoteStore.serialize(spot))).isEqualTo(spot)
         assertThat(MarketQuoteStore.parse(MarketQuoteStore.serialize(nifty))).isEqualTo(nifty)
         assertThat(MarketQuoteStore.parse(null)).isNull()
         assertThat(MarketQuoteStore.parse("not-json")).isNull()

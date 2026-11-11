@@ -16,17 +16,52 @@ object MarketQuoteLogic {
     const val CLOSE_MINUTE = 15 * 60 + 30
     const val ZONE_ID = "Asia/Kolkata"
 
-    fun parseGold24kPer10g(json: String, nowMs: Long): MarketQuote {
-        val obj = JSONObject(json)
-        val perGram = number(obj, "price_gram_24k")
-        require(perGram.isFinite() && perGram > 0.0) { "gold price missing" }
+    private val goldJs22k = Regex(
+        """['"]22['"]\s*:\s*parseMetalPrice\(\s*['"]([0-9,.]+)['"]\s*\)""",
+        RegexOption.IGNORE_CASE
+    )
+    private val goldWidget22k = Regex(
+        """22\s*[kK]\s*Gold[\s\S]{0,500}?(?:₹|&#8377;|Rs\.?)\s*([0-9,]+(?:\.[0-9]+)?)\s*/\s*gm""",
+        RegexOption.IGNORE_CASE
+    )
+    private val goldWidgetChange = Regex(
+        """22\s*[kK]\s*Gold[\s\S]{0,500}?\(([+-]?[0-9.]+)\s*%\)""",
+        RegexOption.IGNORE_CASE
+    )
+
+    /** Indian retail 22K per gram from Goodreturns HTML (JS blob or Mumbai widget). */
+    fun parseGoodreturns22k1g(html: String, nowMs: Long): MarketQuote {
+        val decoded = html.replace("&#8377;", "₹").replace("&#x20b9;", "₹", ignoreCase = true)
+        val raw = goldJs22k.find(decoded)?.groupValues?.get(1)
+            ?: goldWidget22k.find(decoded)?.groupValues?.get(1)
+            ?: error("goodreturns 22k missing")
+        val perGram = raw.replace(",", "").toDoubleOrNull() ?: error("goodreturns 22k invalid")
+        require(perGram > 0.0) { "goodreturns 22k missing" }
+        val pct = goldWidgetChange.find(decoded)?.groupValues?.get(1)?.toDoubleOrNull()
         return MarketQuote(
             kind = MarketKinds.GOLD,
             label = MarketKinds.LABEL_GOLD,
-            price = perGram * 10.0,
+            price = perGram,
+            changePercent = pct?.takeIf { it.isFinite() },
+            updatedAtMs = nowMs,
+            source = MarketKinds.SOURCE_GOLD_RETAIL,
+            spot = false
+        )
+    }
+
+    /** Spot-derived 22K per gram (LBMA/FX), used only as fallback. */
+    fun parseGoldSpot22k1g(json: String, nowMs: Long): MarketQuote {
+        val obj = JSONObject(json)
+        val perGram = number(obj, "price_gram_22k")
+        require(perGram.isFinite() && perGram > 0.0) { "gold spot missing" }
+        return MarketQuote(
+            kind = MarketKinds.GOLD,
+            label = MarketKinds.LABEL_GOLD,
+            price = perGram,
             changePercent = null,
             updatedAtMs = nowMs,
-            source = MarketKinds.SOURCE_GOLD
+            source = MarketKinds.SOURCE_GOLD_SPOT,
+            spot = true
         )
     }
 
@@ -53,16 +88,37 @@ object MarketQuoteLogic {
         )
     }
 
-    fun parse(kind: String, json: String, nowMs: Long): MarketQuote = when (kind) {
-        MarketKinds.GOLD -> parseGold24kPer10g(json, nowMs)
-        MarketKinds.NIFTY -> parseNifty(json, nowMs)
+    fun parse(kind: String, body: String, nowMs: Long): MarketQuote = when (kind) {
+        MarketKinds.GOLD -> runCatching { parseGoodreturns22k1g(body, nowMs) }.getOrElse {
+            parseGoldSpot22k1g(body, nowMs)
+        }
+        MarketKinds.NIFTY -> parseNifty(body, nowMs)
         else -> error("unknown kind $kind")
     }
 
     fun url(kind: String): String = when (kind) {
-        MarketKinds.GOLD -> MarketSources.GOLD_URL
+        MarketKinds.GOLD -> MarketSources.GOLD_RETAIL_URL
         MarketKinds.NIFTY -> MarketSources.NIFTY_URL
         else -> error("unknown kind $kind")
+    }
+
+    fun formatSynced(
+        updatedAtMs: Long,
+        zone: TimeZone = TimeZone.getDefault(),
+        locale: Locale = Locale.getDefault()
+    ): String {
+        if (updatedAtMs <= 0L) return ""
+        val fmt = java.text.SimpleDateFormat("d MMM, h:mm a", locale)
+        fmt.timeZone = zone
+        return "Synced ${fmt.format(java.util.Date(updatedAtMs))}"
+    }
+
+    fun formatFooter(synced: String, failed: Boolean, spot: Boolean): String {
+        val parts = ArrayList<String>(3)
+        if (failed) parts.add("Couldn't update")
+        if (synced.isNotEmpty()) parts.add(synced)
+        if (spot) parts.add("spot")
+        return parts.joinToString(" · ")
     }
 
     fun isNseOpen(nowMs: Long, zone: TimeZone = TimeZone.getTimeZone(ZONE_ID)): Boolean {
