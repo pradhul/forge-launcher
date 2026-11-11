@@ -8,7 +8,14 @@ data class MarketQuote(
     val changePercent: Double?,
     val updatedAtMs: Long,
     val source: String,
-    val spot: Boolean = false
+    val spot: Boolean = false,
+    val previousPrice: Double? = null
+)
+
+/** Signed day-over-day move. Null previous hides the change line instead of showing 0. */
+data class DayChange(
+    val amount: Double,
+    val percent: Double
 )
 
 data class MarketQuoteUi(

@@ -28,6 +28,14 @@ object MarketQuoteLogic {
         """22\s*[kK]\s*Gold[\s\S]{0,500}?\(([+-]?[0-9.]+)\s*%\)""",
         RegexOption.IGNORE_CASE
     )
+    private val goldHistoryRow = Regex(
+        """<td>\s*([A-Za-z]{3}\s+\d{1,2},\s+\d{4})\s*</td>\s*<td>[\s\S]*?</td>\s*<td>\s*₹\s*([0-9,]+)""",
+        RegexOption.IGNORE_CASE
+    )
+    private val goldGram1Delta = Regex(
+        """<td>\s*1\s*</td>\s*<td>[\s\S]*?</td>\s*<td>\s*₹\s*[0-9,]+\s*<span[^>]*>\s*\(([+-]?\d+)\)""",
+        RegexOption.IGNORE_CASE
+    )
 
     /** Indian retail 22K per gram from Goodreturns HTML (JS blob or Mumbai widget). */
     fun parseGoodreturns22k1g(html: String, nowMs: Long): MarketQuote {
@@ -37,7 +45,9 @@ object MarketQuoteLogic {
             ?: error("goodreturns 22k missing")
         val perGram = raw.replace(",", "").toDoubleOrNull() ?: error("goodreturns 22k invalid")
         require(perGram > 0.0) { "goodreturns 22k missing" }
-        val pct = goldWidgetChange.find(decoded)?.groupValues?.get(1)?.toDoubleOrNull()
+        val previous = parseGoodreturnsPrevious22k(decoded, perGram, nowMs)
+        val pct = dayChange(perGram, previous)?.percent
+            ?: goldWidgetChange.find(decoded)?.groupValues?.get(1)?.toDoubleOrNull()
         return MarketQuote(
             kind = MarketKinds.GOLD,
             label = MarketKinds.LABEL_GOLD,
@@ -45,8 +55,29 @@ object MarketQuoteLogic {
             changePercent = pct?.takeIf { it.isFinite() },
             updatedAtMs = nowMs,
             source = MarketKinds.SOURCE_GOLD_RETAIL,
-            spot = false
+            spot = false,
+            previousPrice = previous
         )
+    }
+
+    fun parseGoodreturnsPrevious22k(html: String, todayPrice: Double, nowMs: Long): Double? {
+        val today = istDate(nowMs)
+        val earlier = parseGoodreturnsHistory22k(html)
+            .filter { it.first < today }
+            .maxByOrNull { it.first }
+            ?.second
+        if (earlier != null && earlier > 0.0) return earlier
+        val delta = goldGram1Delta.find(html)?.groupValues?.get(1)?.toDoubleOrNull()
+        if (delta != null && delta.isFinite()) return todayPrice - delta
+        return null
+    }
+
+    fun parseGoodreturnsHistory22k(html: String): List<Pair<String, Double>> {
+        return goldHistoryRow.findAll(html).mapNotNull { match ->
+            val date = parseHistoryDate(match.groupValues[1]) ?: return@mapNotNull null
+            val price = match.groupValues[2].replace(",", "").toDoubleOrNull() ?: return@mapNotNull null
+            if (price > 0.0) date to price else null
+        }.toList()
     }
 
     /** Spot-derived 22K per gram (LBMA/FX), used only as fallback. */
@@ -73,19 +104,29 @@ object MarketQuoteLogic {
             .getJSONObject("meta")
         val price = number(meta, "regularMarketPrice")
         require(price.isFinite() && price > 0.0) { "nifty price missing" }
+        val previous = niftyPreviousClose(meta, price)
         val pct = number(meta, "regularMarketChangePercent").takeIf { it.isFinite() }
-            ?: run {
-                val prev = number(meta, "chartPreviousClose")
-                if (prev.isFinite() && prev != 0.0) (price - prev) / prev * 100.0 else null
-            }
+            ?: number(meta, "fulldayChangePercent").takeIf { it.isFinite() }
+            ?: dayChange(price, previous)?.percent
         return MarketQuote(
             kind = MarketKinds.NIFTY,
             label = MarketKinds.LABEL_NIFTY,
             price = price,
             changePercent = pct,
             updatedAtMs = nowMs,
-            source = MarketKinds.SOURCE_NIFTY
+            source = MarketKinds.SOURCE_NIFTY,
+            previousPrice = previous
         )
+    }
+
+    fun niftyPreviousClose(meta: JSONObject, price: Double): Double? {
+        val fullday = number(meta, "fulldayChange")
+        if (fullday.isFinite()) return price - fullday
+        val regular = number(meta, "regularMarketChange")
+        if (regular.isFinite()) return price - regular
+        val chartPrev = number(meta, "chartPreviousClose")
+        if (chartPrev.isFinite() && chartPrev > 0.0) return chartPrev
+        return null
     }
 
     fun parse(kind: String, body: String, nowMs: Long): MarketQuote = when (kind) {
@@ -164,6 +205,31 @@ object MarketQuoteLogic {
         }
     }
 
+    fun formatDayChange(kind: String, change: DayChange): String {
+        val dir = changeDirection(change)
+        val arrow = when {
+            dir > 0 -> "▲ "
+            dir < 0 -> "▼ "
+            else -> ""
+        }
+        val amount = if (kind == MarketKinds.GOLD) {
+            formatInr(abs(change.amount))
+        } else {
+            groupIndian(abs(change.amount), 2)
+        }
+        return "$arrow$amount (${formatChangePercent(abs(change.percent))}) vs yesterday"
+    }
+
+    fun formatChangePercent(percent: Double): String {
+        val abs = abs(percent)
+        val one = String.format(Locale.US, "%.1f", abs)
+        return if (one == "0.0" && abs >= 0.005) {
+            String.format(Locale.US, "%.2f%%", abs)
+        } else {
+            "$one%"
+        }
+    }
+
     fun changeDirection(percent: Double?): Int {
         if (percent == null || !percent.isFinite()) return 0
         return when {
@@ -171,6 +237,82 @@ object MarketQuoteLogic {
             percent < -0.005 -> -1
             else -> 0
         }
+    }
+
+    fun changeDirection(change: DayChange): Int {
+        return when {
+            change.amount > 0.005 || change.percent > 0.005 -> 1
+            change.amount < -0.005 || change.percent < -0.005 -> -1
+            else -> 0
+        }
+    }
+
+    fun dayChange(price: Double, previous: Double?): DayChange? {
+        if (previous == null || !previous.isFinite() || previous == 0.0) return null
+        if (!price.isFinite()) return null
+        val amount = price - previous
+        val percent = amount / previous * 100.0
+        if (!amount.isFinite() || !percent.isFinite()) return null
+        return DayChange(amount, percent)
+    }
+
+    fun istDate(nowMs: Long, zone: TimeZone = TimeZone.getTimeZone(ZONE_ID)): String {
+        val cal = Calendar.getInstance(zone)
+        cal.timeInMillis = nowMs
+        return String.format(
+            Locale.US,
+            "%04d-%02d-%02d",
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH) + 1,
+            cal.get(Calendar.DAY_OF_MONTH)
+        )
+    }
+
+    fun previousFromHistory(history: Map<String, Double>, todayIst: String): Double? {
+        val date = history.keys.filter { it < todayIst }.maxOrNull() ?: return null
+        return history[date]?.takeIf { it.isFinite() && it > 0.0 }
+    }
+
+    fun previousFromPercent(price: Double, percent: Double?): Double? {
+        if (percent == null || !percent.isFinite()) return null
+        val denom = 1.0 + percent / 100.0
+        if (!denom.isFinite() || denom == 0.0) return null
+        val previous = price / denom
+        return previous.takeIf { it.isFinite() && it > 0.0 }
+    }
+
+    fun recordDay(
+        history: Map<String, Double>,
+        todayIst: String,
+        price: Double,
+        keep: Int = 30
+    ): Map<String, Double> {
+        if (!price.isFinite() || price <= 0.0 || todayIst.isBlank()) return history
+        val next = history.toSortedMap()
+        next[todayIst] = price
+        while (next.size > keep) next.remove(next.firstKey())
+        return next
+    }
+
+    /**
+     * Prefer the source's previous-day rate, then implied percent, then the
+     * last locally stored value from an earlier IST date.
+     */
+    fun attachPrevious(
+        quote: MarketQuote,
+        history: Map<String, Double>,
+        nowMs: Long
+    ): Pair<MarketQuote, Map<String, Double>> {
+        val today = istDate(nowMs)
+        val previous = quote.previousPrice?.takeIf { it.isFinite() && it > 0.0 }
+            ?: previousFromPercent(quote.price, quote.changePercent)
+            ?: previousFromHistory(history, today)
+        val change = dayChange(quote.price, previous)
+        val next = quote.copy(
+            previousPrice = previous,
+            changePercent = change?.percent
+        )
+        return next to recordDay(history, today, quote.price)
     }
 
     /** Indian grouping: 24,312.60 and 1,21,338 — not US thousands. */
@@ -203,6 +345,24 @@ object MarketQuoteLogic {
             i = start
         }
         return chunks.asReversed().joinToString(",") + "," + last3
+    }
+
+    private fun parseHistoryDate(label: String): String? {
+        val parsed = runCatching {
+            val fmt = java.text.SimpleDateFormat("MMM d, yyyy", Locale.US)
+            fmt.isLenient = false
+            fmt.timeZone = TimeZone.getTimeZone("UTC")
+            fmt.parse(label.trim())
+        }.getOrNull() ?: return null
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+        cal.time = parsed
+        return String.format(
+            Locale.US,
+            "%04d-%02d-%02d",
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH) + 1,
+            cal.get(Calendar.DAY_OF_MONTH)
+        )
     }
 
     private fun number(obj: JSONObject, key: String): Double {

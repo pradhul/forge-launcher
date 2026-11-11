@@ -71,6 +71,7 @@ class MarketQuoteView(
         chip.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
         chip.setTypeface(Typeface.DEFAULT_BOLD)
         chip.setPadding(dp(8), dp(3), dp(8), dp(3))
+        chip.maxLines = 2
         addView(
             chip,
             LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) }
@@ -108,13 +109,13 @@ class MarketQuoteView(
         refresh.setColorFilter(palette.text)
         val quote = next.quote
         price.text = quote?.let { MarketQuoteLogic.formatPrice(kind, it.price) } ?: "—"
-        val pct = quote?.changePercent
-        val dir = MarketQuoteLogic.changeDirection(pct)
-        if (pct == null) {
+        val change = quote?.let { MarketQuoteLogic.dayChange(it.price, it.previousPrice) }
+        val dir = change?.let { MarketQuoteLogic.changeDirection(it) } ?: 0
+        if (change == null) {
             chip.visibility = GONE
         } else {
             chip.visibility = VISIBLE
-            chip.text = MarketQuoteLogic.formatChange(pct)
+            chip.text = MarketQuoteLogic.formatDayChange(kind, change)
             chip.setTextColor(MarketThemeLogic.chipForeground(palette, dir))
             chip.background = GradientDrawable().apply {
                 cornerRadius = dp(20).toFloat()

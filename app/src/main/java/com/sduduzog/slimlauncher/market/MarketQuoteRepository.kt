@@ -82,8 +82,8 @@ class MarketQuoteRepository(
         notify(kind, previous, refreshing = true, failed = false)
         try {
             val next = if (kind == MarketKinds.GOLD) fetchGold(now) else fetchParsed(kind, now)
-            if (next != null) store.save(next)
-            notify(kind, next ?: previous, refreshing = false, failed = next == null)
+            val saved = next?.let { persist(it) }
+            notify(kind, saved ?: previous, refreshing = false, failed = saved == null)
         } finally {
             inFlight.remove(kind)
         }
@@ -100,6 +100,17 @@ class MarketQuoteRepository(
         val spot = runCatching { fetch(MarketSources.GOLD_SPOT_URL, html = false) }.getOrNull()
             ?: return null
         return runCatching { MarketQuoteLogic.parseGoldSpot22k1g(spot, now) }.getOrNull()
+    }
+
+    private fun persist(quote: MarketQuote): MarketQuote {
+        val (next, history) = MarketQuoteLogic.attachPrevious(
+            quote,
+            store.loadHistory(quote.kind),
+            quote.updatedAtMs
+        )
+        store.save(next)
+        store.saveHistory(quote.kind, history)
+        return next
     }
 
     private fun fetchParsed(kind: String, now: Long): MarketQuote? {
