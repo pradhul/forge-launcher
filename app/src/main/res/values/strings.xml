@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name" translatable="false">Slim Launcher</string>
+    <string name="app_name" translatable="false">Forge</string>
     <string name="main_placeholder_clock" translatable="false">00:00</string>
     <string name="main_placeholder_date" translatable="false">Sat, Apr 20</string>
 
@@ -22,13 +22,64 @@
     <string name="prefs_settings_key_theme" translatable="false">key_theme</string>
     <string name="prefs_settings_key_time_format" translatable="false">time_format</string>
     <string name="prefs_settings_key_toggle_status_bar" translatable="false">hide_status_bar</string>
+    <string name="prefs_settings_key_show_icons" translatable="false">key_show_icons</string>
+    <string name="prefs_settings_key_applied_pack" translatable="false">key_applied_pack_id</string>
+    <string name="prefs_settings_key_match_background" translatable="false">key_match_background_to_pack</string>
+    <string name="prefs_settings_key_theme_source" translatable="false">key_theme_source</string>
+    <string name="prefs_settings_key_bing_enabled" translatable="false">key_bing_wallpaper_enabled</string>
     <string name="choose_time_format_dialog_title">Choose Time Format</string>
     <string name="main_fragment_options">Options</string>
-    <string name="options_fragment_about_slim">About Slim</string>
+    <string name="home_all_apps">All apps</string>
+    <string name="home_overflow_menu">Menu</string>
+    <string name="home_open_apps_handle">Swipe up for apps</string>
+    <string name="home_empty_hint">Swipe up to open apps, then long-press an app and choose Add to home. Drag icons on this grid to rearrange.</string>
+    <string name="menu_icon_packs">Icon packs</string>
+    <string name="menu_icon_packs_desc">Restyle app icons so they sit with the wallpaper.</string>
+    <string name="menu_wallpaper_theme">Wallpaper &amp; theme</string>
+    <string name="menu_wallpaper_theme_desc">Bing daily wallpaper and wallpaper-styled icons.</string>
+    <string name="menu_launcher_settings">Launcher settings</string>
+    <string name="menu_launcher_settings_desc">Keyboard, blur, and other launcher options.</string>
+    <string name="menu_about">About</string>
+    <string name="menu_about_desc">Version and a debug log you can send without a computer.</string>
+    <string name="about_forge_message">Forge %1$s (%2$d)\n\nIf the app drawer hangs, copy the debug log. It includes recent main-thread stalls and the last process exits (ANR traces on Android 11+).</string>
+    <string name="about_copy_debug_log">Copy debug log</string>
+    <string name="about_debug_log_copied">Debug log copied</string>
+    <string name="options_fragment_about_desc">Version and a debug log you can send without a computer.</string>
+    <string name="menu_apply_theme">Apply theme from wallpaper</string>
+    <string name="menu_apply_theme_desc">Read the current wallpaper colours and restyle the launcher now.</string>
+    <string name="theme_applying">Theming…</string>
+    <string name="theme_applied">Theme applied</string>
+    <string name="home_action_add">Add to home</string>
+    <string name="home_action_remove">Remove from home</string>
+    <string name="home_action_app_info">App info</string>
+    <string name="home_action_regenerate">Regenerate icon</string>
+    <string name="options_fragment_about_slim">About Forge</string>
+    <string name="options_fragment_toggle_icons">Toggle Icons</string>
+    <string name="options_fragment_icon_packs">Icon Packs</string>
+    <string name="options_fragment_match_background">Match background to pack</string>
+    <string name="icon_packs_api_key_hint">On-device styles need no key. Gemini image generation needs a paid AI Studio key.</string>
+    <string name="icon_packs_get_api_key">Get API key</string>
+    <string name="google_ai_studio_api_key_url" translatable="false">https://aistudio.google.com/apikey</string>
     <string name="options_fragment_device_settings">Device Settings</string>
+    <string name="options_fragment_device_settings_desc">Open Android settings. Long-press for default-home settings.</string>
     <string name="options_fragment_change_theme">Change Theme</string>
     <string name="options_fragment_choose_time_format">Choose Time Format</string>
+    <string name="options_fragment_open_keyboard">Open keyboard when drawer opens</string>
+    <string name="options_fragment_open_keyboard_desc">Show the keyboard as soon as you open the app drawer.</string>
+    <string name="options_fragment_drawer_fade">Drawer fade  %1$d%%</string>
+    <string name="options_fragment_home_fade">Home fade  %1$d%%</string>
+    <string name="options_fragment_home_fade_desc">How strongly the clock and home tint sit on the wallpaper.</string>
+    <string name="options_fragment_drawer_blur">Drawer blur  %1$d%%</string>
+    <string name="options_fragment_drawer_blur_desc">Live wallpaper blur when Android allows it. Bing or Forge-set wallpapers use a blurred still. Other wallpapers use a tinted frost at this strength.</string>
+    <string name="options_fragment_drawer_blur_unsupported">Drawer blur needs Android 12 or newer.</string>
     <string name="options_fragment_customise_apps">Customise Apps</string>
+    <string name="options_fragment_customise_apps_desc">Choose which apps appear on the home screen.</string>
+    <string name="options_fragment_icon_packs_desc">Restyle app icons so they match the wallpaper palette.</string>
+    <string name="wallpaper_bing_desc">Download Bing\'s photo of the day as your wallpaper.</string>
+    <string name="wallpaper_unmetered_desc">Only download the daily photo on Wi-Fi or other unmetered networks.</string>
+    <string name="wallpaper_styled_icons_desc">Recolour icons so they match the current wallpaper palette.</string>
+    <string name="wallpaper_refresh_desc">Fetch today\'s Bing photo now.</string>
+    <string name="wallpaper_strength_desc">How strongly icons pick up the wallpaper colours.</string>
     <string name="options_fragment_toggle_status_bar">Toggle Status Bar</string>
     <string name="options_fragment_hide_status_bar">Hide Status Bar</string>
     <string name="options_fragment_show_status_bar">Show Status Bar</string>
@@ -43,4 +94,16 @@
     <string name="remove_all_apps_dialog_message" translatable="false">"This action will not uninstall your apps."
     "It is just to confirm if you're clearing this list on purpose"</string>
 
+    <string name="options_fragment_icon_style">Icon style</string>
+    <string name="options_fragment_icon_style_desc">%1$s: %2$s</string>
+    <string name="icon_style_themed">Themed</string>
+    <string name="icon_style_themed_desc">App logos in one wallpaper colour on a matching background.</string>
+    <string name="icon_style_tinted">Tinted</string>
+    <string name="icon_style_tinted_desc">Real app icons with a visible wallpaper colour tint.</string>
+    <string name="icon_style_original">Original</string>
+    <string name="icon_style_original_desc">Unchanged app icons, no wallpaper theming.</string>
+    <string name="icon_style_artistic">Artistic</string>
+    <string name="icon_style_artistic_desc">Repaint icons with the on-device style-transfer look.</string>
+    <string name="home_grid_full">Home is full. Remove an app from the home grid first.</string>
+    <string name="ring_drag_hint">Drag to select</string>
 </resources>

@@ -1,9 +1,15 @@
 package com.sduduzog.slimlauncher
 
+import android.content.Intent
 import android.content.SharedPreferences
+import android.content.res.Configuration
 import android.content.res.Resources
+import android.graphics.BitmapFactory
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
@@ -12,11 +18,23 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import com.sduduzog.slimlauncher.databinding.MainActivityBinding
+import com.sduduzog.slimlauncher.icons.GenerationMode
+import com.sduduzog.slimlauncher.icons.IconPackGenerator
+import com.sduduzog.slimlauncher.icons.IconPackStore
+import com.sduduzog.slimlauncher.icons.IconPreferences
+import com.sduduzog.slimlauncher.icons.InstalledAppsQuery
+import com.sduduzog.slimlauncher.icons.PackCreateSpec
+import com.sduduzog.slimlauncher.icons.PackThemeExtractor
+import com.sduduzog.slimlauncher.icons.StylePreset
+import com.sduduzog.slimlauncher.wallpaper.BingWallpaperApplier
+import com.sduduzog.slimlauncher.wallpaper.WallpaperThemeMonitor
+import java.io.File
 import com.sduduzog.slimlauncher.utils.BaseFragment
 import com.sduduzog.slimlauncher.utils.HomeWatcher
 import com.sduduzog.slimlauncher.utils.IPublisher
 import com.sduduzog.slimlauncher.utils.ISubscriber
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 
 @AndroidEntryPoint
@@ -29,6 +47,13 @@ class MainActivity : AppCompatActivity(),
     private lateinit var homeWatcher: HomeWatcher
     private lateinit var binding: MainActivityBinding
     private val subscribers: MutableSet<BaseFragment> = mutableSetOf()
+
+    @Inject lateinit var iconPackStore: IconPackStore
+    @Inject lateinit var iconPackGenerator: IconPackGenerator
+    @Inject lateinit var iconPreferences: IconPreferences
+    @Inject lateinit var installedAppsQuery: InstalledAppsQuery
+    @Inject lateinit var packThemeExtractor: PackThemeExtractor
+    @Inject lateinit var wallpaperThemeMonitor: WallpaperThemeMonitor
     private val backPressedCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
             dispatchBack()
@@ -57,8 +82,11 @@ class MainActivity : AppCompatActivity(),
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             WindowCompat.setDecorFitsSystemWindows(window, false)
         }
+        window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+        window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         binding = MainActivityBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        wallpaperThemeMonitor.start()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, windowInsets ->
                 val insets = windowInsets.getInsets(
@@ -77,12 +105,74 @@ class MainActivity : AppCompatActivity(),
         homeWatcher = HomeWatcher(this)
         homeWatcher.setOnHomePressedListener(this)
         onBackPressedDispatcher.addCallback(this, backPressedCallback)
+        maybeStartDebugPack(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (maybeStartDebugPack(intent)) return
+        goHome()
+    }
+
+    /**
+     * Debug-only hook so emulator verification can generate an on-device
+     * style pack (e.g. neon) without fighting System UI ANR dialogs.
+     */
+    private fun maybeStartDebugPack(intent: Intent?): Boolean {
+        if (!BuildConfig.DEBUG) return false
+        if (intent?.getBooleanExtra(EXTRA_USE_STOCK, false) == true) {
+            iconPreferences.revertToStock()
+            return false
+        }
+        val customPath = intent?.getStringExtra(EXTRA_CUSTOM_STYLE)
+        if (!customPath.isNullOrBlank()) {
+            val bytes = runCatching { File(customPath).readBytes() }.getOrNull() ?: return false
+            iconPreferences.wallpaperStyledIcons = true
+            iconPreferences.wallpaperStyleHash = null
+            val spec = PackCreateSpec(
+                name = "Wallpaper",
+                stylePrompt = "Wallpaper",
+                generatorMode = GenerationMode.ON_DEVICE,
+                stylePresetId = StylePreset.WALLPAPER_ID,
+                styleStrength = iconPreferences.wallpaperStyleStrength,
+                customStyleBytes = bytes,
+                fixedId = com.sduduzog.slimlauncher.wallpaper.WallpaperPackLogic.PACK_ID
+            )
+            val pack = iconPackStore.createPack(spec)
+            packThemeExtractor.ensureTheme(pack.id)
+            iconPreferences.applyPack(pack.id)
+            iconPackGenerator.startPack(pack, installedAppsQuery.load())
+            return true
+        }
+        if (intent?.hasExtra(EXTRA_DRAWER_BLUR) == true) {
+            iconPreferences.drawerBlurPercent = intent.getIntExtra(EXTRA_DRAWER_BLUR, 50)
+        }
+        val wallpaperPath = intent?.getStringExtra(EXTRA_SET_WALLPAPER)
+        if (!wallpaperPath.isNullOrBlank()) {
+            val bitmap = runCatching { BitmapFactory.decodeFile(wallpaperPath) }.getOrNull()
+            if (bitmap != null) {
+                BingWallpaperApplier.setWallpaper(this, bitmap)
+                wallpaperThemeMonitor.refreshFromSystem()
+            }
+        }
+        if (intent?.getStringExtra(EXTRA_GENERATE_PRESET) != null) {
+            wallpaperThemeMonitor.refreshFromSystem()
+            return true
+        }
+        return false
     }
 
     override fun onResume() {
         super.onResume()
-        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
-        toggleStatusBar()
+        overridePendingTransition(R.anim.forge_fade_in, R.anim.forge_fade_out)
+        showSystemUI()
+        wallpaperThemeMonitor.onHostResume()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        wallpaperThemeMonitor.onUiModeChanged()
     }
 
     override fun onStart() {
@@ -97,63 +187,44 @@ class MainActivity : AppCompatActivity(),
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) toggleStatusBar()
+        if (hasFocus) showSystemUI()
     }
 
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, s: String?) {
-        if (s.equals(getString(R.string.prefs_settings_key_theme), true)) {
-            recreate()
-        }
-        if (s.equals(getString(R.string.prefs_settings_key_toggle_status_bar), true)) {
-            toggleStatusBar()
-        }
+        // Theme now comes from the wallpaper. Status bar is always shown.
     }
 
     override fun getTheme(): Resources.Theme {
         val theme = super.getTheme()
-        settings = getSharedPreferences(getString(R.string.prefs_settings), MODE_PRIVATE)
-        val active = settings.getInt(getString(R.string.prefs_settings_key_theme), 0)
-        theme.applyStyle(resolveTheme(active), true)
+        theme.applyStyle(R.style.AppTheme, true)
         return theme
     }
 
     override fun onHomePressed() {
+        goHome()
+    }
+
+    private fun goHome() {
+        if (::navigator.isInitialized) {
+            navigator.popBackStack(R.id.homeFragment, false)
+        }
         dispatchHome()
-        navigator.popBackStack(R.id.homeFragment, false)
     }
 
     private fun showSystemUI() {
+        if (!::binding.isInitialized) return
         WindowCompat.getInsetsController(window, binding.root)
             .show(WindowInsetsCompat.Type.statusBars())
     }
 
-    private fun hideSystemUI() {
-        WindowCompat.getInsetsController(window, binding.root)
-            .hide(WindowInsetsCompat.Type.statusBars())
-    }
-
-    private fun toggleStatusBar() {
-        val isHidden = settings.getBoolean(getString(R.string.prefs_settings_key_toggle_status_bar), false)
-        if (isHidden) {
-            hideSystemUI()
-        } else {
-            showSystemUI()
-        }
-    }
-
     companion object {
-
-        fun resolveTheme(i: Int): Int {
-            return when (i) {
-                1 -> R.style.AppDarkTheme
-                2 -> R.style.AppGreyTheme
-                3 -> R.style.AppTealTheme
-                4 -> R.style.AppCandyTheme
-                5 -> R.style.AppPinkTheme
-                else -> R.style.AppTheme
-            }
-        }
+        const val EXTRA_GENERATE_PRESET = "forge_generate_preset"
+        const val EXTRA_USE_STOCK = "forge_use_stock"
+        const val EXTRA_CUSTOM_STYLE = "forge_custom_style"
+        const val EXTRA_SET_WALLPAPER = "forge_set_wallpaper"
+        const val EXTRA_DRAWER_BLUR = "forge_drawer_blur"
+        const val EXTRA_OPEN_DRAWER = "forge_open_drawer"
     }
 
     private fun completeBackAction() {

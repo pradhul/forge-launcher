@@ -13,6 +13,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.sduduzog.slimlauncher.R
 import com.sduduzog.slimlauncher.adapters.CustomAppsAdapter
 import com.sduduzog.slimlauncher.databinding.CustomiseAppsFragmentBinding
+import com.sduduzog.slimlauncher.icons.AppIconResolver
 import com.sduduzog.slimlauncher.models.CustomiseAppsViewModel
 import com.sduduzog.slimlauncher.models.HomeApp
 import com.sduduzog.slimlauncher.ui.dialogs.RemoveAllAppsDialog
@@ -21,6 +22,7 @@ import com.sduduzog.slimlauncher.utils.BaseFragment
 import com.sduduzog.slimlauncher.utils.OnItemActionListener
 import com.sduduzog.slimlauncher.utils.OnShitDoneToAppsListener
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 
 @AndroidEntryPoint
@@ -32,6 +34,9 @@ class CustomiseAppsFragment : BaseFragment(), OnShitDoneToAppsListener {
 
     private val viewModel: CustomiseAppsViewModel by viewModels()
 
+    @Inject
+    lateinit var iconResolver: AppIconResolver
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -39,13 +44,13 @@ class CustomiseAppsFragment : BaseFragment(), OnShitDoneToAppsListener {
     ): View? {
         _binding = CustomiseAppsFragmentBinding.inflate(inflater, container, false)
 
-        val adapter = CustomAppsAdapter(this)
+        val adapter = CustomAppsAdapter(this, iconResolver)
 
         viewModel.apps.observe(viewLifecycleOwner) {
             it?.let { apps ->
                 adapter.setItems(apps)
                 binding!!.customiseAppsFragmentAdd.visibility =
-                    if (apps.size < 7) View.VISIBLE else View.INVISIBLE
+                    if (apps.size < com.sduduzog.slimlauncher.ui.home.HomeGridLogic.MAX) View.VISIBLE else View.INVISIBLE
             } ?: adapter.setItems(listOf())
         }
         binding!!.customiseAppsFragmentRemoveAll.setOnClickListener {

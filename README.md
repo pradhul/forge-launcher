@@ -1,52 +1,48 @@
-# Slim launcher
-> _All you need is less._
+# Forge
 
-![GitHub](https://img.shields.io/github/license/sduduzog/slim-launcher.svg?style=plastic)
-![F-Droid](https://img.shields.io/f-droid/v/com.sduduzog.slimlauncher.svg?style=plastic)
-![GitHub tag (latest SemVer)](https://img.shields.io/github/tag/sduduzog/slim-launcher.svg?style=plastic)
-![GitHub stars](https://img.shields.io/github/stars/sduduzog/slim-launcher.svg?style=social)
+A minimal Android launcher with a twist: user-generated icon packs, **on-device by default**, with optional [Google AI Studio](https://aistudio.google.com/) (Gemini) generation if you have a paid key.
 
-![Slim Launcher Logo](docs/assets/slim-logo.jpg)
+Forge is a fork of [Slim Launcher](https://github.com/sduduzog/slim-launcher) by Beautus Sduduzo Gumede, used under the MIT License. Slim’s original copyright and permission notice are preserved in `LICENSE`. This project is a separate app (`com.pradhul.forge`) and does not reuse Slim’s name or logo.
 
-**Now available on Google Play and F-Droid!**
+## Why Forge
 
-[<img src="https://f-droid.org/badge/get-it-on.png"
-     alt="Get it on F-Droid"
-     height="80">](https://f-droid.org/packages/com.sduduzog.slimlauncher/)
-[<img src="https://play.google.com/intl/en_us/badges/images/generic/en-play-badge.png"
-     alt="Get it on Google Play"
-     height="80">](https://play.google.com/store/apps/details?id=com.sduduzog.slimlauncher)
+Slim’s idea is *all you need is less* — a short home list, no feed, no widgets. Forge keeps that restraint and adds one feature: restyle every installed app’s icon with a bundled neural style-transfer model, or optionally with Gemini.
 
-## Background
->A minimalist launcher that only allows you to use fewer apps on your device.
+## Features
 
-# Contributions
+- Minimal home screen with pinned apps (first launch auto-pins Phone, Messages, Chrome, Camera, Settings, Play Store when those apps exist)
+- A real **All apps** drawer: swipe up or tap the handle, search, launch, long-press to pin/unpin / app info / regenerate
+- App icons next to labels on home and in the drawer (pack icon when applied, otherwise stock)
+- Icon packs stored on the device: name, style prompt, and per-package PNGs
+- Create, list, apply, and delete packs; revert to stock icons at any time
+- Missing pack icons fall back to the system icon
+- Paste a Google AI Studio API key (stored locally with EncryptedSharedPreferences; never logged or committed)
+- **On-device styles (default):** Magenta arbitrary-image-stylization TFLite (~3 MB, Apache-2.0) plus six bundled presets (neon, watercolor, pastel, retro pixel, ink, gold) or a photo from your gallery. Style-strength slider, cohesive circle/squircle backplates, and a light post-pass (palette, neon glow, posterize).
+- **Gemini (optional):** paste a paid Google AI Studio API key. Free-tier keys have no image quota and are rejected with a clear message. Paid keys get paced requests, `retryDelay` honoring, progress, cancel, and per-app regenerate.
 
+## How to use
 
-## Issues
-**1.** Create an issue with suggestions for what to change, or do so yourself.
-Within the scope of what the app is, features will be added in the next release following friendly discussion.
+1. Build and install the debug APK (`./gradlew assembleDebug`). Forge can sit next to Slim because the application id is different.
+2. Set **Forge** as the Home app (long-press the Home button or open device home settings). Home button returns to the home list and closes the drawer.
+3. Tap **All apps** (or swipe up) to open the drawer. Long-press the home screen for Icon packs / Options.
+4. Tap **Create pack**. Mode defaults to **On-device styles** — pick a preset (or your own photo) and a strength, then Start. No API key required.
+5. Wait while Forge stylises each installed launcher app on the phone (typically well under a minute for ~60 apps). You can cancel; a partial pack is kept.
+6. Apply the pack (generation applies it when it finishes with at least one icon). Apps not in the pack keep their stock icons.
+7. Optional: paste a [Google AI Studio API key](https://aistudio.google.com/apikey) and switch Mode to **Gemini** if you have billing enabled.
+8. Open a pack to regenerate a single app, or choose **Use stock icons** to revert.
 
-**2.** Help is needed anywhere you see fit, please do.
+On-device generation uses the Magenta `arbitrary-image-stylization-v1-256` int8 TFLite models (Apache-2.0; see `THIRD_PARTY_NOTICES.md`). Gemini mode calls `gemini-2.5-flash-image` and is billed to your AI Studio account.
 
-## Code reviews/new PRs etc
-**3.** I think anyone can contribute, at least, not even writing a single line of code, any open pull request is open for discussion. If you want to submit a new pull request, open an issue for it, 
-if it doesn't exist already. 
-When I'm working on something big (new features maybe), I'll probably have a PR for it. If you want to help me out, you can create a pull request against that feature branch, I'd appreciate that a lot.
-Also I'm working on [v3.0](https://github.com/sduduzog/slim-launcher/pull/98) and I think it'll be cool to collaborate with strangers on it :)
+## Building and tests
 
-### Running/Writing tests
-- Install JDK 17 or newer and Android SDK 36.
-- Set the SDK path in `local.properties` or with `ANDROID_SDK_ROOT`.
-- Build and run unit tests with `./gradlew assembleDebug testDebugUnitTest`.
-- Existing tests should not be removed to make a build pass.
+- JDK 17 or newer and Android SDK 36+
+- Set the SDK path in `local.properties` or with `ANDROID_SDK_ROOT`
+- `./gradlew assembleDebug testDebugUnitTest`
+- Existing Slim tests are kept; new unit tests cover pack storage, apply/fallback, post-process, and Gemini error handling
 
-**4.** [Sign up as a tester](https://play.google.com/apps/testing/com.sduduzog.slimlauncher) to help access any implementations that make it to the beta channel. Your opinion is very valuable and affects **thousands** of users.
+## License
 
-## [Buy me a coffee](https://buymeacoff.ee/sduduzog)
-**5.** Motivation to work on this app comes from the great feedback I receive from the reviews on the Play Store and the e-mails.
-That someone out there noticed the little effort that I put into it gives me all the drive I need to type away at it time and time again.
+MIT. See `LICENSE`.
 
-**6.** Thank you to everyone that contributed to the project and my growth as a developer and a maintainer.
-
-Thank you for your time
+Copyright (c) 2018 Beautus Sduduzo Gumede  
+Copyright (c) 2026 Pradhul
