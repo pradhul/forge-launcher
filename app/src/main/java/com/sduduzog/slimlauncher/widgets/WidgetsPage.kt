@@ -26,6 +26,9 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import com.pradhul.forge.habits.Habits
+import com.pradhul.forge.habits.HabitsEntry
+import com.sduduzog.slimlauncher.habits.HabitsBridge
 import com.sduduzog.slimlauncher.icons.PackTheme
 import com.sduduzog.slimlauncher.icons.ThemedIconPalette
 import com.sduduzog.slimlauncher.market.MarketKinds
@@ -33,6 +36,7 @@ import com.sduduzog.slimlauncher.market.MarketQuoteRepository
 import com.sduduzog.slimlauncher.market.MarketQuoteScheduler
 import com.sduduzog.slimlauncher.market.MarketQuoteUi
 import com.sduduzog.slimlauncher.market.MarketThemeLogic
+import com.pradhul.forge.habits.ui.HabitsWidgetView
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -172,7 +176,7 @@ class WidgetsPage(
             } else null
             val card = WidgetCard(entry, info)
             cards[entry.id] = card
-            column.addView(card, cardParams(entry.heightDp))
+            column.addView(card, cardParams(entry))
         }
         editingId = null
         syncMarketWork()
@@ -269,26 +273,27 @@ class WidgetsPage(
 
     private fun placeBuiltin(kind: String) {
         closePicker()
-        if (!MarketKinds.isBuiltin(kind)) return
+        if (!MarketKinds.isBuiltin(kind) && kind != Habits.KIND) return
         val existing = entries.firstOrNull { it.kind == kind }
         if (existing != null) {
-            quotes.refresh(kind, force = true)
+            if (MarketKinds.isBuiltin(kind)) quotes.refresh(kind, force = true)
             val card = cards[existing.id] ?: return
             scroll.post { scroll.smoothScrollTo(0, card.top) }
             return
         }
+        val height = if (kind == Habits.KIND) Habits.DEFAULT_HEIGHT_DP else MarketKinds.COMPACT_HEIGHT_DP
         val entry = WidgetEntry(
             WidgetLayoutLogic.nextSyntheticId(entries),
-            MarketKinds.COMPACT_HEIGHT_DP,
+            height,
             kind
         )
         entries = WidgetLayoutLogic.add(entries, entry)
         store.save(entries)
         val card = WidgetCard(entry, null)
         cards[entry.id] = card
-        column.addView(card, cardParams(entry.heightDp))
+        column.addView(card, cardParams(entry))
         scroll.post { scroll.smoothScrollTo(0, column.height) }
-        quotes.refresh(kind, force = true)
+        if (MarketKinds.isBuiltin(kind)) quotes.refresh(kind, force = true)
         syncMarketWork()
         if (pageVisible) quotes.setLivePolling(true, builtinKinds())
     }
@@ -301,7 +306,7 @@ class WidgetsPage(
         store.save(entries)
         val card = WidgetCard(entry, info)
         cards[id] = card
-        column.addView(card, cardParams(entry.heightDp))
+        column.addView(card, cardParams(entry))
         scroll.post { scroll.smoothScrollTo(0, column.height) }
         pendingId = AppWidgetManager.INVALID_APPWIDGET_ID
     }
@@ -373,8 +378,26 @@ class WidgetsPage(
         }
     }
 
-    private fun cardParams(heightDp: Int) = LinearLayout.LayoutParams(MATCH, dp(heightDp)).apply {
+    private fun cardParams(entry: WidgetEntry) = LinearLayout.LayoutParams(
+        MATCH,
+        if (entry.kind == Habits.KIND) ViewGroup.LayoutParams.WRAP_CONTENT else dp(entry.heightDp)
+    ).apply {
         marginStart = dp(16); marginEnd = dp(16); topMargin = dp(8); bottomMargin = dp(8)
+    }
+
+    private fun builtinView(kind: String): View {
+        if (kind == Habits.KIND) {
+            val palette = HabitsBridge.palette(theme)
+            return HabitsEntry.widget(activity, palette) {
+                HabitsEntry.open(activity, HabitsBridge.palette(theme))
+            }
+        }
+        return MarketQuoteView(activity, kind) {
+            quotes.refresh(kind, force = true)
+        }.also { view ->
+            view.applyColors(MarketThemeLogic.colors(theme))
+            view.bind(MarketQuoteUi(quotes.quote(kind)))
+        }
     }
 
     private fun dp(v: Int): Int = (v * density).roundToInt()
@@ -383,12 +406,7 @@ class WidgetsPage(
     private inner class WidgetCard(var entry: WidgetEntry, info: AppWidgetProviderInfo?) : FrameLayout(activity) {
         private val hostView: AppWidgetHostView? =
             if (info != null) host.createView(app, entry.id, info) else null
-        private val content: View = hostView ?: MarketQuoteView(activity, entry.kind) {
-            quotes.refresh(entry.kind, force = true)
-        }.also { view ->
-            view.applyColors(MarketThemeLogic.colors(theme))
-            view.bind(MarketQuoteUi(quotes.quote(entry.kind)))
-        }
+        private val content: View = hostView ?: builtinView(entry.kind)
         private val controls = LinearLayout(activity)
         private val topHandle = View(activity)
         private val bottomHandle = View(activity)
@@ -406,7 +424,13 @@ class WidgetsPage(
 
         init {
             clipToOutline = true
-            addView(content, LayoutParams(MATCH, MATCH))
+            addView(
+                content,
+                LayoutParams(
+                    MATCH,
+                    if (entry.kind == Habits.KIND) ViewGroup.LayoutParams.WRAP_CONTENT else MATCH
+                )
+            )
             controls.orientation = LinearLayout.HORIZONTAL
             listOf("\u2193" to { moveWidget(entry.id, 1) }, "\u2191" to { moveWidget(entry.id, -1) }, "\u00D7" to { removeWidget(entry.id) })
                 .forEach { (glyph, action) ->
@@ -448,6 +472,7 @@ class WidgetsPage(
                 it.background = GradientDrawable().apply { cornerRadius = dp(5).toFloat(); setColor(accent) }
             }
             (content as? MarketQuoteView)?.applyColors(MarketThemeLogic.colors(theme))
+            (content as? HabitsWidgetView)?.setPalette(HabitsBridge.palette(theme))
         }
 
         fun bindQuote(kind: String, ui: MarketQuoteUi) {

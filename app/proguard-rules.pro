@@ -34,6 +34,7 @@
 -keepattributes SourceFile,LineNumberTable,RuntimeVisibleAnnotations,AnnotationDefault,InnerClasses,EnclosingMethod,Signature
 
 -keep class com.sduduzog.slimlauncher.** { *; }
+-keep class com.pradhul.forge.habits.** { *; }
 -keep class dagger.hilt.** { *; }
 -keep class javax.inject.** { *; }
 -keep class * extends androidx.room.RoomDatabase

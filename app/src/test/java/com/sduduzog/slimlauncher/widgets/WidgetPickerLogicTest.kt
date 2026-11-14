@@ -67,8 +67,8 @@ class WidgetPickerLogicTest {
 
     @Test fun forgeSectionStaysPinnedAtTopAndMatchesGoldQuery() {
         val forge = WidgetPickerLogic.forgeSection("com.pradhul.forge")
-        assertThat(forge.widgets.map { it.label }).containsExactly("Gold · 22K · 1g", "NIFTY 50").inOrder()
-        assertThat(forge.widgets.map { it.sizeLabel }).containsExactly("2×1", "2×1")
+        assertThat(forge.widgets.map { it.label }).containsExactly("Gold · 22K · 1g", "NIFTY 50", "Habits").inOrder()
+        assertThat(forge.widgets.map { it.sizeLabel }).containsExactly("2×1", "2×1", "4×2")
         val rest = WidgetPickerLogic.group(all)
         val pinned = WidgetPickerLogic.withPinned(forge, rest)
         assertThat(pinned.first().appLabel).isEqualTo("Forge")
@@ -78,5 +78,7 @@ class WidgetPickerLogicTest {
         assertThat(gold[0].widgets.map { it.label }).containsExactly("Gold · 22K · 1g")
         val nifty = WidgetPickerLogic.filter(pinned, "nifty")
         assertThat(nifty[0].widgets.map { it.label }).containsExactly("NIFTY 50")
+        val habits = WidgetPickerLogic.filter(pinned, "habit")
+        assertThat(habits[0].widgets.map { it.label }).containsExactly("Habits")
     }
 }

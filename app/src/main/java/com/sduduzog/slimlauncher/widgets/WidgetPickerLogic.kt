@@ -1,5 +1,6 @@
 package com.sduduzog.slimlauncher.widgets
 
+import com.pradhul.forge.habits.Habits
 import com.sduduzog.slimlauncher.market.MarketKinds
 import kotlin.math.ceil
 
@@ -55,6 +56,10 @@ object WidgetPickerLogic {
             PickerWidget(
                 MarketKinds.NIFTY, packageName, profileSerial,
                 MarketKinds.APP_LABEL, MarketKinds.LABEL_NIFTY, 2, 1
+            ),
+            PickerWidget(
+                Habits.KIND, packageName, profileSerial,
+                MarketKinds.APP_LABEL, Habits.LABEL, Habits.CELLS_W, Habits.CELLS_H
             )
         )
         return PickerSection(packageName, profileSerial, MarketKinds.APP_LABEL, widgets)

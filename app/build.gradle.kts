@@ -17,7 +17,7 @@ android {
         minSdk = 23
         targetSdk = 36
         versionName = "1.0.0"
-        versionCode = 85
+        versionCode = 86
         vectorDrawables { useSupportLibrary = true }
         ndk {
             abiFilters += ((project.findProperty("forgeAbi") as? String)?.takeIf { it.isNotBlank() }
@@ -103,6 +103,7 @@ android {
 
 dependencies {
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
+    implementation(project(":feature-habits"))
 
     // Support Libraries
     implementation("androidx.appcompat:appcompat:1.7.0")
