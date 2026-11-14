@@ -10,7 +10,7 @@ android {
     defaultConfig {
         minSdk = 23
         consumerProguardFiles("consumer-rules.pro")
-        buildConfigField("String", "HABITS_VERSION", "\"1.0.0\"")
+        buildConfigField("String", "HABITS_VERSION", "\"1.1.0\"")
     }
     buildFeatures {
         compose = true

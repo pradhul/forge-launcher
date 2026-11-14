@@ -1,5 +1,6 @@
 package com.pradhul.forge.habits.ui
 
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -38,8 +39,8 @@ class HabitsUiTest {
 
     @Test
     fun versionIsIndependentOfLauncher() {
-        assertThat(Habits.VERSION).isEqualTo("1.0.0")
-        assertThat(BuildConfig.HABITS_VERSION).isEqualTo("1.0.0")
+        assertThat(Habits.VERSION).isEqualTo("1.1.0")
+        assertThat(BuildConfig.HABITS_VERSION).isEqualTo("1.1.0")
     }
 
     @Test
@@ -50,6 +51,7 @@ class HabitsUiTest {
         }
         compose.onNodeWithContentDescription("New habit").performClick()
         compose.onNodeWithText("New habit").assertExists()
+        compose.onNodeWithContentDescription("Save habit").assertIsDisplayed()
         compose.onNodeWithContentDescription("Save habit").assertIsNotEnabled()
     }
 

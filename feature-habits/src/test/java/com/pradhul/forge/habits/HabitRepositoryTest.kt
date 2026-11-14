@@ -85,7 +85,7 @@ class HabitRepositoryTest {
         assertThat(HabitStore.parse(HabitStore.serialize(snap))).isEqualTo(snap)
         assertThat(HabitPalette.fromJson(HabitPalette.FALLBACK.toJson()).accent)
             .isEqualTo(HabitPalette.FALLBACK.accent)
-        assertThat(Habits.VERSION).isEqualTo("1.0.0")
+        assertThat(Habits.VERSION).isEqualTo("1.1.0")
         assertThat(Habits.LABEL).isEqualTo("Habits")
         assertThat(Habits.KIND).isEqualTo("forge.habits")
     }

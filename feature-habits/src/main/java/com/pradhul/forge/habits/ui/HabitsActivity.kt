@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.view.WindowCompat
 import com.pradhul.forge.habits.HabitPalette
 import com.pradhul.forge.habits.HabitRepository
 import com.pradhul.forge.habits.HabitThemeHolder
@@ -17,6 +18,7 @@ class HabitsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         palette = HabitPalette.fromJson(intent.getStringExtra(EXTRA_PALETTE)).also {
             HabitThemeHolder.palette = it
         }

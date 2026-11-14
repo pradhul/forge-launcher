@@ -24,7 +24,11 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.border
 import kotlin.math.roundToInt
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.foundation.layout.Arrangement
@@ -252,7 +256,7 @@ fun AppDrawer(
             .then(Modifier)
             .then(swipeToClose)
             .nestedScroll(noTopOverscroll)
-            .imePadding()
+            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Box(

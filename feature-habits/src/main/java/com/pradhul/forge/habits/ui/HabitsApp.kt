@@ -1,5 +1,20 @@
 package com.pradhul.forge.habits.ui
 
+import android.view.HapticFeedbackConstants
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -7,25 +22,37 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -35,18 +62,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pradhul.forge.habits.DayDot
 import com.pradhul.forge.habits.DotState
 import com.pradhul.forge.habits.Habit
 import com.pradhul.forge.habits.HabitLogic
@@ -57,6 +92,9 @@ import com.pradhul.forge.habits.HabitWeekRow
 import com.pradhul.forge.habits.MonthDay
 import com.pradhul.forge.habits.WeekStats
 import java.util.TimeZone
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private enum class Page { Habits, Stats }
 
@@ -79,6 +117,7 @@ fun HabitsApp(
     var menu by remember { mutableStateOf<RowMenu?>(null) }
     var confirm by remember { mutableStateOf<String?>(null) }
     val today = repo.today()
+    val motion = HabitMotion.enabled()
 
     HabitsTheme(palette) {
         Box(
@@ -94,10 +133,29 @@ fun HabitsApp(
                 Modifier
                     .fillMaxSize()
                     .statusBarsPadding()
-                    .navigationBarsPadding()
+                    .windowInsetsPadding(WindowInsets.navigationBars)
             ) {
-                Box(Modifier.weight(1f).fillMaxWidth()) {
-                    if (page == Page.Habits) {
+                AnimatedContent(
+                    targetState = page,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    transitionSpec = {
+                        if (!motion) {
+                            fadeIn(tween(0)) togetherWith fadeOut(tween(0))
+                        } else if (targetState == Page.Stats) {
+                            (slideInHorizontally(tween(HabitMotion.MEDIUM_MS)) { it / 6 } +
+                                fadeIn(tween(HabitMotion.MEDIUM_MS))) togetherWith
+                                (slideOutHorizontally(tween(HabitMotion.FAST_MS)) { -it / 6 } +
+                                    fadeOut(tween(HabitMotion.FAST_MS)))
+                        } else {
+                            (slideInHorizontally(tween(HabitMotion.MEDIUM_MS)) { -it / 6 } +
+                                fadeIn(tween(HabitMotion.MEDIUM_MS))) togetherWith
+                                (slideOutHorizontally(tween(HabitMotion.FAST_MS)) { it / 6 } +
+                                    fadeOut(tween(HabitMotion.FAST_MS)))
+                        }.using(SizeTransform(clip = false))
+                    },
+                    label = "habitsPage"
+                ) { current ->
+                    if (current == Page.Habits) {
                         ManageScreen(
                             snapshot = snapshot,
                             palette = palette,
@@ -181,6 +239,7 @@ internal fun ManageScreen(
     onMove: (String, Int) -> Unit
 ) {
     val habits = snapshot.activeHabits()
+    val motion = HabitMotion.enabled()
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             TopBar("Habits", palette, onClose)
@@ -191,32 +250,44 @@ internal fun ManageScreen(
                 fontSize = 13.sp,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
             )
-            Column(
-                Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 if (habits.isEmpty()) {
-                    Text(
-                        "Tap + New habit to start tracking your day.",
-                        color = palette.muted.toCompose(),
-                        fontSize = 15.sp,
-                        modifier = Modifier
-                            .padding(24.dp)
-                            .semantics { contentDescription = "empty" }
-                    )
-                } else {
-                    habits.forEach { habit ->
-                        ManageRow(habit, palette, onMenu) { onMove(habit.id, it) }
+                    item(key = "empty") {
+                        Text(
+                            "Tap + New habit to start tracking your day.",
+                            color = palette.muted.toCompose(),
+                            fontSize = 15.sp,
+                            modifier = Modifier
+                                .padding(24.dp)
+                                .semantics { contentDescription = "empty" }
+                        )
                     }
-                    Text(
-                        "Tap ⋮ to edit or delete · hold ⋮⋮ to drag and reorder",
-                        color = palette.muted.toCompose(),
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 80.dp)
-                    )
+                } else {
+                    items(habits, key = { it.id }) { habit ->
+                        ManageRow(
+                            habit = habit,
+                            palette = palette,
+                            modifier = Modifier.animateItem(
+                                fadeInSpec = HabitMotion.fadeSpec(motion),
+                                fadeOutSpec = HabitMotion.fadeSpec(motion),
+                                placementSpec = HabitMotion.placementSpec(motion)
+                            ),
+                            onMenu = onMenu,
+                            onMove = { onMove(habit.id, it) }
+                        )
+                    }
+                    item(key = "hint") {
+                        Text(
+                            "Tap ⋮ to edit or delete · hold ⋮⋮ to drag and reorder",
+                            color = palette.muted.toCompose(),
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+                        )
+                    }
                 }
             }
         }
@@ -230,7 +301,7 @@ internal fun ManageScreen(
                 .padding(end = 20.dp, bottom = 12.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(palette.accent.toCompose())
-                .clickable(onClick = onNew)
+                .habitClickable(onClick = onNew)
                 .semantics { contentDescription = "New habit" }
                 .padding(horizontal = 18.dp, vertical = 14.dp)
         )
@@ -241,15 +312,28 @@ internal fun ManageScreen(
 private fun ManageRow(
     habit: Habit,
     palette: HabitPalette,
+    modifier: Modifier = Modifier,
     onMenu: (RowMenu) -> Unit,
     onMove: (Int) -> Unit
 ) {
-    val density = LocalDensity.current
-    val rowH = with(density) { 56.dp.toPx() }
+    val motion = HabitMotion.enabled()
+    val view = LocalView.current
+    var dragging by remember { mutableStateOf(false) }
+    val lift by animateFloatAsState(
+        targetValue = if (dragging) 1f else 0f,
+        animationSpec = HabitMotion.springFloat(motion),
+        label = "lift"
+    )
     var acc by remember { mutableFloatStateOf(0f) }
+    val rowHPx = with(androidx.compose.ui.platform.LocalDensity.current) { 56.dp.toPx() }
     val menuAnchor = remember { androidx.compose.runtime.mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     Row(
-        Modifier
+        modifier
+            .graphicsLayer {
+                scaleX = 1f + 0.03f * lift
+                scaleY = 1f + 0.03f * lift
+            }
+            .shadow((10 * lift).dp, RoundedCornerShape(22.dp), clip = false)
             .fillMaxWidth()
             .clip(RoundedCornerShape(22.dp))
             .background(palette.card.toCompose())
@@ -260,15 +344,26 @@ private fun ManageRow(
             Modifier
                 .pointerInput(habit.id) {
                     detectDragGestures(
-                        onDragStart = { acc = 0f },
-                        onDragEnd = { acc = 0f },
-                        onDragCancel = { acc = 0f },
+                        onDragStart = {
+                            acc = 0f
+                            dragging = true
+                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        },
+                        onDragEnd = {
+                            acc = 0f
+                            dragging = false
+                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        },
+                        onDragCancel = {
+                            acc = 0f
+                            dragging = false
+                        },
                         onDrag = { _, amount ->
                             acc += amount.y
-                            if (acc > rowH) {
+                            if (acc > rowHPx) {
                                 onMove(1)
                                 acc = 0f
-                            } else if (acc < -rowH) {
+                            } else if (acc < -rowHPx) {
                                 onMove(-1)
                                 acc = 0f
                             }
@@ -296,7 +391,7 @@ private fun ManageRow(
             fontSize = 22.sp,
             modifier = Modifier
                 .onGloballyPositioned { menuAnchor.value = it.positionInRoot() }
-                .clickable {
+                .habitClickable {
                     onMenu(RowMenu(habit.id, menuAnchor.value.x, menuAnchor.value.y + 20f))
                 }
                 .semantics { contentDescription = "Menu ${habit.name}" }
@@ -316,21 +411,55 @@ internal fun EditSheet(
     onDismiss: () -> Unit
 ) {
     val canSave = HabitLogic.canSave(state.name)
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.45f))
+    val motion = HabitMotion.enabled()
+    val focusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val isNew = state.id == null
+    val sheetOffset = remember { Animatable(if (motion) 160f else 0f) }
+    val scrim = remember { Animatable(if (motion) 0f else 0.45f) }
+    LaunchedEffect(Unit) {
+        if (motion) {
+            coroutineScope {
+                launch { sheetOffset.animateTo(0f, spring(dampingRatio = 0.85f, stiffness = 700f)) }
+                launch { scrim.animateTo(0.45f, tween(HabitMotion.MEDIUM_MS)) }
+            }
+        }
+    }
+    LaunchedEffect(state.id) {
+        if (isNew) {
+            focusRequester.requestFocus()
+            keyboard?.show()
+        }
+    }
+    val saveBg by animateColorAsState(
+        targetValue = if (canSave) palette.accent.toCompose() else palette.muted.toCompose().copy(alpha = 0.2f),
+        animationSpec = HabitMotion.tweenMs(HabitMotion.FAST_MS, motion),
+        label = "saveBg"
+    )
+    val saveFg by animateColorAsState(
+        targetValue = if (canSave) palette.onAccent.toCompose() else palette.muted.toCompose(),
+        animationSpec = HabitMotion.tweenMs(HabitMotion.FAST_MS, motion),
+        label = "saveFg"
+    )
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = scrim.value))
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() },
                     onClick = onDismiss
                 )
-                .semantics { contentDescription = "Dismiss editor" },
-        contentAlignment = Alignment.BottomCenter
-    ) {
+                .semantics { contentDescription = "Dismiss editor" }
+        )
         Column(
             Modifier
+                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                .heightIn(max = maxHeight)
+                .graphicsLayer { translationY = sheetOffset.value }
                 .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
                 .background(palette.popup.toCompose())
                 .clickable(
@@ -339,7 +468,6 @@ internal fun EditSheet(
                     onClick = {}
                 )
                 .padding(horizontal = 20.dp, vertical = 12.dp)
-                .navigationBarsPadding()
         ) {
             Box(
                 Modifier
@@ -351,7 +479,7 @@ internal fun EditSheet(
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                if (state.id == null) "New habit" else "Edit habit",
+                if (isNew) "New habit" else "Edit habit",
                 color = palette.text.toCompose(),
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold
@@ -371,6 +499,15 @@ internal fun EditSheet(
                         fontSize = 12.sp
                     )
                 },
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        if (canSave) onSave() else keyboard?.hide()
+                    }
+                ),
                 colors = TextFieldDefaults.colors(
                     focusedTextColor = palette.text.toCompose(),
                     unfocusedTextColor = palette.text.toCompose(),
@@ -382,38 +519,31 @@ internal fun EditSheet(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .focusRequester(focusRequester)
                     .semantics { contentDescription = "Habit name" }
             )
             Spacer(Modifier.height(16.dp))
             Text("Emoji", color = palette.muted.toCompose(), fontSize = 13.sp)
             Spacer(Modifier.height(8.dp))
-            val emojis = HabitLogic.EMOJIS
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                emojis.chunked(6).forEach { row ->
+            Column(
+                Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                HabitLogic.EMOJIS.chunked(6).forEach { row ->
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         row.forEach { emoji ->
-                            val selected = emoji == state.emoji
-                            Box(
-                                Modifier
-                                    .weight(1f)
-                                    .height(48.dp)
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(palette.accent.toCompose().copy(alpha = if (selected) 0.28f else 0.12f))
-                                    .then(
-                                        if (selected) Modifier.border(
-                                            1.5.dp,
-                                            palette.accent.toCompose(),
-                                            RoundedCornerShape(14.dp)
-                                        ) else Modifier
-                                    )
-                                    .clickable { onEmoji(emoji) },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(emoji, fontSize = 22.sp)
-                            }
+                            EmojiChoice(
+                                emoji = emoji,
+                                selected = emoji == state.emoji,
+                                palette = palette,
+                                modifier = Modifier.weight(1f),
+                                onClick = { onEmoji(emoji) }
+                            )
                         }
                     }
                 }
@@ -428,28 +558,63 @@ internal fun EditSheet(
                         modifier = Modifier
                             .clip(RoundedCornerShape(24.dp))
                             .border(1.dp, Color(0xFFFF8A9A).copy(alpha = 0.7f), RoundedCornerShape(24.dp))
-                            .clickable(onClick = onDelete)
+                            .habitClickable(onClick = onDelete)
                             .padding(horizontal = 28.dp, vertical = 12.dp)
                     )
                 }
                 Spacer(Modifier.weight(1f))
                 Text(
                     "Save",
-                    color = if (canSave) palette.onAccent.toCompose() else palette.muted.toCompose(),
+                    color = saveFg,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
                         .clip(RoundedCornerShape(24.dp))
-                        .background(
-                            if (canSave) palette.accent.toCompose()
-                            else palette.muted.toCompose().copy(alpha = 0.2f)
-                        )
-                        .clickable(enabled = canSave, onClick = onSave)
+                        .background(saveBg)
+                        .habitClickable(enabled = canSave, onClick = onSave)
                         .semantics { contentDescription = "Save habit" }
                         .padding(horizontal = 32.dp, vertical = 12.dp)
                 )
             }
             Spacer(Modifier.height(8.dp))
         }
+    }
+}
+
+@Composable
+private fun EmojiChoice(
+    emoji: String,
+    selected: Boolean,
+    palette: HabitPalette,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val motion = HabitMotion.enabled()
+    val selectedFrac by animateFloatAsState(
+        targetValue = if (selected) 1f else 0f,
+        animationSpec = HabitMotion.popFloat(motion),
+        label = "emojiSel"
+    )
+    Box(
+        modifier
+            .height(48.dp)
+            .graphicsLayer {
+                val pop = 1f + 0.08f * selectedFrac
+                scaleX = pop
+                scaleY = pop
+            }
+            .clip(RoundedCornerShape(14.dp))
+            .background(palette.accent.toCompose().copy(alpha = 0.12f + 0.16f * selectedFrac))
+            .then(
+                if (selectedFrac > 0.01f) Modifier.border(
+                    (1.5f * selectedFrac).dp,
+                    palette.accent.toCompose().copy(alpha = selectedFrac),
+                    RoundedCornerShape(14.dp)
+                ) else Modifier
+            )
+            .habitClickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(emoji, fontSize = 22.sp)
     }
 }
 
@@ -465,6 +630,7 @@ internal fun StatsScreen(
 ) {
     val week = HabitLogic.weekStats(snapshot, today, zone)
     val month = HabitLogic.monthStats(snapshot, today, zone)
+    val motion = HabitMotion.enabled()
     Column(Modifier.fillMaxSize()) {
         TopBar("Statistics", palette, onClose)
         Column(
@@ -475,8 +641,34 @@ internal fun StatsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             WeekMonthToggle(weekMode, palette, onWeekMode)
-            if (weekMode) WeekCard(week, palette) else MonthCard(month, palette)
-            if (weekMode) WeekGrid(week, palette)
+            AnimatedContent(
+                targetState = weekMode,
+                transitionSpec = {
+                    if (!motion) {
+                        fadeIn(tween(0)) togetherWith fadeOut(tween(0))
+                    } else if (targetState) {
+                        (slideInHorizontally(tween(HabitMotion.MEDIUM_MS)) { -it / 8 } +
+                            fadeIn(tween(HabitMotion.MEDIUM_MS))) togetherWith
+                            (slideOutHorizontally(tween(HabitMotion.FAST_MS)) { it / 8 } +
+                                fadeOut(tween(HabitMotion.FAST_MS)))
+                    } else {
+                        (slideInHorizontally(tween(HabitMotion.MEDIUM_MS)) { it / 8 } +
+                            fadeIn(tween(HabitMotion.MEDIUM_MS))) togetherWith
+                            (slideOutHorizontally(tween(HabitMotion.FAST_MS)) { -it / 8 } +
+                                fadeOut(tween(HabitMotion.FAST_MS)))
+                    }
+                },
+                label = "weekMonth"
+            ) { weekSelected ->
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (weekSelected) {
+                        WeekCard(week, palette)
+                        WeekGrid(week, palette)
+                    } else {
+                        MonthCard(month, palette)
+                    }
+                }
+            }
             Spacer(Modifier.height(12.dp))
         }
     }
@@ -498,11 +690,17 @@ private fun WeekMonthToggle(weekMode: Boolean, palette: HabitPalette, onWeekMode
 
 @Composable
 private fun Segment(label: String, selected: Boolean, palette: HabitPalette, modifier: Modifier, onClick: () -> Unit) {
+    val motion = HabitMotion.enabled()
+    val bg by animateColorAsState(
+        targetValue = if (selected) palette.accent.toCompose().copy(alpha = 0.35f) else Color.Transparent,
+        animationSpec = HabitMotion.tweenMs(HabitMotion.FAST_MS, motion),
+        label = "segBg"
+    )
     Box(
         modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(if (selected) palette.accent.toCompose().copy(alpha = 0.35f) else Color.Transparent)
-            .clickable(onClick = onClick)
+            .background(bg)
+            .habitClickable(onClick = onClick)
             .padding(vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -516,6 +714,23 @@ private fun Segment(label: String, selected: Boolean, palette: HabitPalette, mod
 
 @Composable
 private fun WeekCard(week: WeekStats, palette: HabitPalette) {
+    val motion = HabitMotion.enabled()
+    val percentTarget = week.percent ?: 0
+    val shownPercent by animateIntAsState(
+        targetValue = percentTarget,
+        animationSpec = if (motion) tween(HabitMotion.MEDIUM_MS) else snap(),
+        label = "weekPct"
+    )
+    val shownCurrent by animateIntAsState(
+        targetValue = week.currentStreak,
+        animationSpec = if (motion) tween(HabitMotion.MEDIUM_MS) else snap(),
+        label = "currentStreak"
+    )
+    val shownBest by animateIntAsState(
+        targetValue = week.bestStreak,
+        animationSpec = if (motion) tween(HabitMotion.MEDIUM_MS) else snap(),
+        label = "bestStreak"
+    )
     Column(
         Modifier
             .fillMaxWidth()
@@ -526,7 +741,7 @@ private fun WeekCard(week: WeekStats, palette: HabitPalette) {
         Row(verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    week.percent?.let { "$it%" } ?: "—",
+                    week.percent?.let { "$shownPercent%" } ?: "—",
                     color = palette.text.toCompose(),
                     fontSize = 40.sp,
                     fontWeight = FontWeight.Bold
@@ -559,9 +774,9 @@ private fun WeekCard(week: WeekStats, palette: HabitPalette) {
         }
         Spacer(Modifier.height(14.dp))
         Row {
-            Text("🔥  ${week.currentStreak} days", color = palette.text.toCompose(), fontWeight = FontWeight.SemiBold)
+            Text("🔥  $shownCurrent days", color = palette.text.toCompose(), fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.width(20.dp))
-            Text("🏆  ${week.bestStreak} days", color = palette.text.toCompose(), fontWeight = FontWeight.SemiBold)
+            Text("🏆  $shownBest days", color = palette.text.toCompose(), fontWeight = FontWeight.SemiBold)
         }
         Row {
             Text("Current streak", color = palette.muted.toCompose(), fontSize = 12.sp, modifier = Modifier.padding(start = 28.dp))
@@ -592,8 +807,8 @@ private fun WeekGrid(week: WeekStats, palette: HabitPalette) {
             }
             Text("%", color = palette.muted.toCompose(), fontSize = 11.sp, modifier = Modifier.width(36.dp))
         }
-        week.rows.forEach { row ->
-            WeekGridRow(row, palette)
+        week.rows.forEachIndexed { rowIndex, row ->
+            WeekGridRow(row, palette, rowIndex)
         }
         if (week.rows.isEmpty()) {
             Text("No habits this week", color = palette.muted.toCompose(), fontSize = 14.sp)
@@ -602,7 +817,7 @@ private fun WeekGrid(week: WeekStats, palette: HabitPalette) {
 }
 
 @Composable
-private fun WeekGridRow(row: HabitWeekRow, palette: HabitPalette) {
+private fun WeekGridRow(row: HabitWeekRow, palette: HabitPalette, rowIndex: Int) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -619,25 +834,9 @@ private fun WeekGridRow(row: HabitWeekRow, palette: HabitPalette) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.width(100.dp)
         )
-        row.dots.forEach { dot ->
+        row.dots.forEachIndexed { col, dot ->
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                val fill = when (dot.state) {
-                    DotState.DONE, DotState.TODAY_DONE -> palette.accent.toCompose()
-                    DotState.MISSED, DotState.TODAY_MISSED -> Color.Transparent
-                    DotState.EMPTY, DotState.FUTURE -> palette.muted.toCompose().copy(alpha = 0.18f)
-                }
-                val border = when (dot.state) {
-                    DotState.TODAY_DONE, DotState.TODAY_MISSED -> palette.text.toCompose()
-                    DotState.MISSED -> palette.accent.toCompose().copy(alpha = 0.55f)
-                    else -> Color.Transparent
-                }
-                Box(
-                    Modifier
-                        .size(14.dp)
-                        .clip(CircleShape)
-                        .background(fill)
-                        .then(if (border.alpha > 0f) Modifier.border(1.2.dp, border, CircleShape) else Modifier)
-                )
+                StaggerDot(dot, palette, index = rowIndex * 7 + col)
             }
         }
         Text(
@@ -647,6 +846,43 @@ private fun WeekGridRow(row: HabitWeekRow, palette: HabitPalette) {
             modifier = Modifier.width(36.dp)
         )
     }
+}
+
+@Composable
+private fun StaggerDot(dot: DayDot, palette: HabitPalette, index: Int) {
+    val motion = HabitMotion.enabled()
+    val appear = remember { Animatable(if (motion) 0f else 1f) }
+    LaunchedEffect(index, motion) {
+        if (motion) {
+            appear.snapTo(0f)
+            delay(HabitMotion.staggerDelayMs(index, true).toLong())
+            appear.animateTo(1f, tween(HabitMotion.FAST_MS))
+        } else {
+            appear.snapTo(1f)
+        }
+    }
+    val fill = when (dot.state) {
+        DotState.DONE, DotState.TODAY_DONE -> palette.accent.toCompose()
+        DotState.MISSED, DotState.TODAY_MISSED -> Color.Transparent
+        DotState.EMPTY, DotState.FUTURE -> palette.muted.toCompose().copy(alpha = 0.18f)
+    }
+    val border = when (dot.state) {
+        DotState.TODAY_DONE, DotState.TODAY_MISSED -> palette.text.toCompose()
+        DotState.MISSED -> palette.accent.toCompose().copy(alpha = 0.55f)
+        else -> Color.Transparent
+    }
+    Box(
+        Modifier
+            .size(14.dp)
+            .graphicsLayer {
+                scaleX = 0.65f + 0.35f * appear.value
+                scaleY = 0.65f + 0.35f * appear.value
+                alpha = appear.value
+            }
+            .clip(CircleShape)
+            .background(fill)
+            .then(if (border.alpha > 0f) Modifier.border(1.2.dp, border, CircleShape) else Modifier)
+    )
 }
 
 @Composable
@@ -688,11 +924,11 @@ private fun MonthCard(month: com.pradhul.forge.habits.MonthStats, palette: Habit
         }
         Spacer(Modifier.height(6.dp))
         val cells = List(month.leadingBlanks) { null } + month.days
-        cells.chunked(7).forEach { week ->
+        cells.chunked(7).forEachIndexed { weekIndex, week ->
             Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
-                week.forEach { day ->
+                week.forEachIndexed { col, day ->
                     Box(Modifier.weight(1f).padding(2.dp), contentAlignment = Alignment.Center) {
-                        if (day != null) HeatCell(day, palette)
+                        if (day != null) HeatCell(day, palette, index = weekIndex * 7 + col)
                     }
                 }
                 repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
@@ -702,7 +938,18 @@ private fun MonthCard(month: com.pradhul.forge.habits.MonthStats, palette: Habit
 }
 
 @Composable
-private fun HeatCell(day: MonthDay, palette: HabitPalette) {
+private fun HeatCell(day: MonthDay, palette: HabitPalette, index: Int) {
+    val motion = HabitMotion.enabled()
+    val appear = remember { Animatable(if (motion) 0f else 1f) }
+    LaunchedEffect(index, motion) {
+        if (motion) {
+            appear.snapTo(0f)
+            delay(HabitMotion.staggerDelayMs(index, true).toLong())
+            appear.animateTo(1f, tween(HabitMotion.FAST_MS))
+        } else {
+            appear.snapTo(1f)
+        }
+    }
     val bg = when {
         day.future -> Color.Transparent
         day.ratio == null -> palette.muted.toCompose().copy(alpha = 0.12f)
@@ -711,6 +958,11 @@ private fun HeatCell(day: MonthDay, palette: HabitPalette) {
     Box(
         Modifier
             .size(36.dp)
+            .graphicsLayer {
+                scaleX = 0.82f + 0.18f * appear.value
+                scaleY = 0.82f + 0.18f * appear.value
+                alpha = appear.value
+            }
             .clip(RoundedCornerShape(10.dp))
             .background(bg)
             .then(
@@ -746,7 +998,7 @@ internal fun TopBar(title: String, palette: HabitPalette, onClose: () -> Unit) {
             color = palette.text.toCompose(),
             fontSize = 28.sp,
             modifier = Modifier
-                .clickable(onClick = onClose)
+                .habitClickable(onClick = onClose)
                 .semantics { contentDescription = "Back" }
                 .padding(horizontal = 12.dp, vertical = 4.dp)
         )

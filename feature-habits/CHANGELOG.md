@@ -1,6 +1,13 @@
 # Forge Habits
 
-Versioned independently of the launcher. Current: **1.0.0** (`BuildConfig.HABITS_VERSION`).
+Versioned independently of the launcher. Current: **1.1.0** (`BuildConfig.HABITS_VERSION`).
+
+## 1.1.0
+
+Keyboard-aware add/edit sheet and Pixel-like motion.
+
+- The add/edit bottom sheet rises above the IME (`adjustResize` + `WindowCompat.setDecorFitsSystemWindows(false)` + `WindowInsets.ime.union(navigationBars)`). Name, counter, and Save/Delete stay visible; the emoji grid scrolls if the sheet is taller than the remaining space. New-habit autofocuses the name field and shows the keyboard. IME Done saves when the name is valid.
+- Tasteful 150–300 ms spring motion (widget toggle, strikethrough, progress ring, manage-list `animateItem`, drag lift, edit sheet, stats stagger, Habits↔Stats shared-axis). Press scale ~0.96. Respects **Remove animations** (`animator duration scale` 0).
 
 ## 1.0.0
 

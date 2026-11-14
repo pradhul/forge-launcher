@@ -7,7 +7,7 @@ import kotlin.math.roundToInt
 
 object HabitLogic {
     const val NAME_MAX = 40
-    const val VERSION = "1.0.0"
+    const val VERSION = "1.1.0"
 
     val EMOJIS = listOf(
         "💧", "📖", "🏋️", "🧘", "🍬", "🚶",
